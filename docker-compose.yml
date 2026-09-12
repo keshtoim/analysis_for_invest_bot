@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    container_name: analysis_for_invest_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
