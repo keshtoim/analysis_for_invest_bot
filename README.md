@@ -12,3 +12,180 @@ Telegram-бот для инвесторов, который проводит а�
 
 Функциональность бота (набор кнопок, доступные виды анализа и т.д.) находится в разработке
 и будет расширяться.
+
+## Архитектура системы
+
+```mermaid
+graph TD
+    U[Пользователь Telegram]
+
+    subgraph TG["Telegram"]
+        API[Telegram Bot API]
+    end
+
+    subgraph APP["Бот-приложение (aiogram, Docker)"]
+        H[Handlers / Routers]
+        AF[Анти-флуд middleware]
+        AS[Analysis Service]
+        CDS[Company Data Service<br/>+ кэш с TTL]
+        AIP[AI Provider Adapter<br/>OpenAI / Anthropic]
+    end
+
+    subgraph EXT["Внешние источники"]
+        NEWS[Новостные API]
+        OPEN[Открытые данные о компаниях]
+        AI[Claude / ChatGPT API]
+    end
+
+    DB[(SQLite<br/>users, company_cache)]
+
+    U <--> API
+    API <--> H
+    H --> AF
+    H --> AS
+    AS --> CDS
+    AS --> AIP
+    CDS --> NEWS
+    CDS --> OPEN
+    CDS --> DB
+    AIP --> AI
+    H --> DB
+```
+
+## Схема базы данных (ER Diagram)
+
+Только то, что реально персистится (истории запросов нет, анти-флуд — в памяти):
+
+```mermaid
+erDiagram
+    USERS {
+        int user_id PK
+        string username
+        string first_name
+        datetime joined_at
+    }
+
+    COMPANY_CACHE {
+        int id PK
+        string company_query
+        string source
+        json raw_data
+        datetime fetched_at
+        datetime expires_at
+    }
+```
+
+Таблицы не связаны между собой — кэш компаний общий для всех пользователей, не привязан
+к конкретному юзеру.
+
+## Доменная модель (Class Diagram)
+
+```mermaid
+classDiagram
+    class User {
+        +int user_id
+        +str username
+        +str first_name
+        +datetime joined_at
+    }
+
+    class AnalysisType {
+        <<enumeration>>
+        SWOT
+        PESTEL
+        PORTER_FIVE_FORCES
+        FINANCIAL_MULTIPLES
+    }
+
+    class AnalysisRequest {
+        +str company_name
+        +list~AnalysisType~ types
+    }
+
+    class AnalysisResult {
+        +str company_name
+        +dict~AnalysisType, str~ sections
+    }
+
+    class AnalysisService {
+        +run(request: AnalysisRequest) AnalysisResult
+    }
+
+    class CompanyDataService {
+        +get_company_data(company_name: str) CompanyData
+    }
+
+    class CompanyData {
+        +str company_name
+        +dict raw_data
+        +datetime fetched_at
+    }
+
+    class AIProvider {
+        <<interface>>
+        +generate_analysis(data: CompanyData, type: AnalysisType) str
+    }
+
+    class OpenAIProvider
+    class AnthropicProvider
+
+    class DataSource {
+        <<interface>>
+        +fetch(company_name: str) dict
+    }
+
+    class NewsDataSource
+    class OpenDataSource
+
+    AnalysisService --> CompanyDataService
+    AnalysisService --> AIProvider
+    AnalysisService --> AnalysisRequest
+    AnalysisService --> AnalysisResult
+    AIProvider <|.. OpenAIProvider
+    AIProvider <|.. AnthropicProvider
+    CompanyDataService --> DataSource
+    CompanyDataService --> CompanyData
+    DataSource <|.. NewsDataSource
+    DataSource <|.. OpenDataSource
+    AnalysisRequest --> AnalysisType
+    AnalysisResult --> AnalysisType
+```
+
+## Жизненный цикл обращения (Activity Diagram)
+
+```mermaid
+flowchart TD
+    Start([Пользователь отправляет название компании]) --> Flood{Анти-флуд:<br/>не спамит?}
+    Flood -- нет --> Wait[Сообщение: подождите] --> End1([Конец])
+    Flood -- да --> Menu[Показать кнопки выбора вида анализа]
+    Menu --> Choice[Пользователь выбирает<br/>один или несколько видов анализа]
+    Choice --> Cache{Данные о компании<br/>есть в кэше и не устарели?}
+    Cache -- да --> UseCache[Взять данные из кэша]
+    Cache -- нет --> Fetch[Запросить данные:<br/>новости + открытые источники]
+    Fetch --> SaveCache[Сохранить в кэш с TTL]
+    SaveCache --> UseCache
+    UseCache --> Loop[Для каждого выбранного вида анализа]
+    Loop --> AI[Запрос к AI-провайдеру<br/>Claude/ChatGPT]
+    AI --> Collect[Собрать результаты]
+    Collect --> Send[Отправить анализ пользователю]
+    Send --> End2([Конец])
+```
+
+## Карта прецедентов (Use Case Diagram)
+
+```mermaid
+flowchart LR
+    Investor((Инвестор))
+    News[/Внешние источники данных/]
+    AIExt[/AI-провайдер/]
+
+    UC1([Запросить анализ компании])
+    UC2([Выбрать вид анализа:<br/>SWOT / PESTEL / 5 сил Портера / мультипликаторы])
+    UC3([Получить справку])
+
+    Investor --> UC1
+    Investor --> UC3
+    UC1 -.включает.-> UC2
+    UC1 -.использует.-> News
+    UC1 -.использует.-> AIExt
+```
