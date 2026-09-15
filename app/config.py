@@ -7,6 +7,8 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 AI_PROVIDER = os.getenv("AI_PROVIDER", "anthropic")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "anthropic/claude-haiku-4-5")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 DB_PATH = os.getenv("DB_PATH", "data/bot.db")
