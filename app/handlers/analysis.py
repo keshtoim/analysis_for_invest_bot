@@ -1,4 +1,5 @@
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -6,6 +7,7 @@ from app.keyboards.analysis_menu import analysis_type_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_LABELS, AnalysisType
 from app.services.ai_provider import generate_analysis
 from app.services.company_data import get_company_data
+from app.utils.html import escape_html, strip_html
 
 router = Router()
 
@@ -15,7 +17,7 @@ async def handle_company_name(message: Message, state: FSMContext) -> None:
     company_name = message.text.strip()
     await state.update_data(company_name=company_name)
     await message.answer(
-        f"Выбери вид анализа для «{company_name}»:",
+        f"Выбери вид анализа для «{escape_html(company_name)}»:",
         reply_markup=analysis_type_keyboard(),
     )
 
@@ -38,7 +40,12 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
         )
         return
 
-    await callback.message.answer(f"Собираю данные по «{company_name}»…")
+    await callback.message.answer(f"Собираю данные по «{escape_html(company_name)}»…")
     company_data = await get_company_data(company_name)
     analysis_text = await generate_analysis(company_data, analysis_type)
-    await callback.message.answer(analysis_text)
+
+    try:
+        await callback.message.answer(analysis_text)
+    except TelegramBadRequest:
+        # Модель вернула HTML, который Telegram не принял — шлём как обычный текст
+        await callback.message.answer(strip_html(analysis_text), parse_mode=None)
