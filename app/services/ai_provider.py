@@ -30,6 +30,30 @@ _anthropic_client: AsyncAnthropic | None = None
 _openai_client: AsyncOpenAI | None = None
 
 
+def _format_company_data(data: dict) -> str:
+    """Компактный текст вместо repr(dict) — экономит токены и понятнее модели."""
+    lines = []
+
+    moex = data.get("moex")
+    if moex:
+        lines.append(
+            f"MOEX: тикер {moex.get('ticker')}, цена {moex.get('last_price')} "
+            f"{moex.get('currency') or ''}, изменение {moex.get('change_percent')}%"
+        )
+    else:
+        lines.append("MOEX: компания не торгуется на бирже или не найдена")
+
+    news = data.get("news") or []
+    if news:
+        lines.append("Новости:")
+        for item in news:
+            lines.append(f"- {item.get('title')}: {item.get('snippet')}")
+    else:
+        lines.append("Новости: не найдены")
+
+    return "\n".join(lines)
+
+
 def _get_anthropic_client() -> AsyncAnthropic:
     global _anthropic_client
     if _anthropic_client is None:
@@ -51,7 +75,7 @@ async def generate_analysis(company_data: dict, analysis_type: AnalysisType) -> 
 
     prompt = prompt_template.format(
         company_name=company_data.get("company_name", ""),
-        data=company_data,
+        data=_format_company_data(company_data),
     )
 
     if AI_PROVIDER == "openai":
