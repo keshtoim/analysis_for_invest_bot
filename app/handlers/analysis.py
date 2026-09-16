@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.keyboards.analysis_menu import analysis_type_keyboard
-from app.models.analysis_type import ANALYSIS_TYPE_LABELS, AnalysisType
+from app.models.analysis_type import AnalysisType
 from app.services.ai_provider import generate_analysis
 from app.services.company_data import get_company_data
 from app.utils.html import escape_html, strip_html
@@ -33,12 +33,6 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
         return
 
     analysis_type = AnalysisType(callback.data.split(":", 1)[1])
-
-    if analysis_type != AnalysisType.SWOT:
-        await callback.message.answer(
-            f"{ANALYSIS_TYPE_LABELS[analysis_type]} пока в разработке — доступен только SWOT."
-        )
-        return
 
     await callback.message.answer(f"Собираю данные по «{escape_html(company_name)}»…")
     company_data = await get_company_data(company_name)

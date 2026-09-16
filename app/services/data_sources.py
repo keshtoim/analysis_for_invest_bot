@@ -109,6 +109,7 @@ async def fetch_moex_data(company_name: str) -> dict | None:
         "name": security.get("name"),
         "last_price": market_row.get("LAST"),
         "change_percent": market_row.get("LASTTOPREVPRICE"),
+        "market_cap": market_row.get("ISSUECAPITALIZATION"),
         "currency": MOEX_CURRENCY,
     }
 

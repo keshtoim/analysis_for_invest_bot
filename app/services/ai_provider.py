@@ -11,18 +11,38 @@ from app.config import (
 )
 from app.models.analysis_type import AnalysisType
 
-_PROMPTS = {
+_HTML_RULES = (
+    "Ответ пойдёт в Telegram-сообщение с HTML-разметкой, поэтому:\n"
+    "- Используй только теги <b>...</b> и <i>...</i>, никакого Markdown "
+    "(никаких #, ##, **, ---, таблиц)\n"
+    "- Пункты внутри раздела — с новой строки через «- », без вложенных списков\n"
+    "- Символы <, >, & в обычном тексте не используй"
+)
+
+_ANALYSIS_INSTRUCTIONS = {
     AnalysisType.SWOT: (
-        'Ты — финансовый аналитик. Составь SWOT-анализ компании "{company_name}" '
-        "на основе данных ниже, кратко и по делу, на русском языке.\n\n"
-        "Ответ пойдёт в Telegram-сообщение с HTML-разметкой, поэтому:\n"
-        "- Используй только теги <b>...</b> и <i>...</i>, никакого Markdown "
-        "(никаких #, ##, **, ---, таблиц)\n"
-        "- Названия разделов оформляй как <b>Strengths</b>, <b>Weaknesses</b>, "
-        "<b>Opportunities</b>, <b>Threats</b> на отдельной строке\n"
-        "- Пункты внутри раздела — с новой строки через «- », без вложенных списков\n"
-        "- Символы <, >, & в обычном тексте не используй\n\n"
-        "Данные о компании:\n{data}"
+        'Составь SWOT-анализ компании "{company_name}".\n'
+        "Названия разделов оформляй как <b>Strengths</b>, <b>Weaknesses</b>, "
+        "<b>Opportunities</b>, <b>Threats</b> на отдельной строке."
+    ),
+    AnalysisType.PESTEL: (
+        'Составь PESTEL-анализ компании "{company_name}".\n'
+        "Названия разделов оформляй как <b>Political</b>, <b>Economic</b>, "
+        "<b>Social</b>, <b>Technological</b>, <b>Environmental</b>, <b>Legal</b> "
+        "на отдельной строке."
+    ),
+    AnalysisType.PORTER_FIVE_FORCES: (
+        'Составь анализ 5 сил Портера для компании "{company_name}".\n'
+        "Названия разделов оформляй как <b>Competitive Rivalry</b>, "
+        "<b>Supplier Power</b>, <b>Buyer Power</b>, <b>Threat of Substitution</b>, "
+        "<b>Threat of New Entry</b> на отдельной строке."
+    ),
+    AnalysisType.FINANCIAL_MULTIPLES: (
+        'Оцени компанию "{company_name}" по финансовым мультипликаторам '
+        "(P/E, P/B, P/S, долговая нагрузка и т.д.) на основе данных ниже.\n"
+        "Если мультипликатор посчитать нельзя из-за нехватки данных — прямо "
+        "напиши об этом, не выдумывай цифры. Раздел <b>Мультипликаторы</b> — "
+        "что удалось оценить, раздел <b>Ограничения</b> — чего не хватило."
     ),
 }
 
@@ -38,7 +58,8 @@ def _format_company_data(data: dict) -> str:
     if moex:
         lines.append(
             f"MOEX: тикер {moex.get('ticker')}, цена {moex.get('last_price')} "
-            f"{moex.get('currency') or ''}, изменение {moex.get('change_percent')}%"
+            f"{moex.get('currency') or ''}, изменение {moex.get('change_percent')}%, "
+            f"капитализация {moex.get('market_cap')} {moex.get('currency') or ''}"
         )
     else:
         lines.append("MOEX: компания не торгуется на бирже или не найдена")
@@ -52,6 +73,20 @@ def _format_company_data(data: dict) -> str:
         lines.append("Новости: не найдены")
 
     return "\n".join(lines)
+
+
+def _build_prompt(analysis_type: AnalysisType, company_data: dict) -> str | None:
+    instruction = _ANALYSIS_INSTRUCTIONS.get(analysis_type)
+    if instruction is None:
+        return None
+
+    task = instruction.format(company_name=company_data.get("company_name", ""))
+    return (
+        f"Ты — финансовый аналитик. {task}\n"
+        "Пиши кратко и по делу, на русском языке.\n\n"
+        f"{_HTML_RULES}\n\n"
+        f"Данные о компании:\n{_format_company_data(company_data)}"
+    )
 
 
 def _get_anthropic_client() -> AsyncAnthropic:
@@ -69,14 +104,9 @@ def _get_openai_client() -> AsyncOpenAI:
 
 
 async def generate_analysis(company_data: dict, analysis_type: AnalysisType) -> str:
-    prompt_template = _PROMPTS.get(analysis_type)
-    if prompt_template is None:
+    prompt = _build_prompt(analysis_type, company_data)
+    if prompt is None:
         return f"Анализ типа {analysis_type.value} пока не реализован."
-
-    prompt = prompt_template.format(
-        company_name=company_data.get("company_name", ""),
-        data=_format_company_data(company_data),
-    )
 
     if AI_PROVIDER == "openai":
         # OpenAI-совместимый шлюз (например, Timeweb AI Gateway), отдающий Claude
