@@ -5,6 +5,7 @@ venv/
 .env
 data/*.json
 data/*.db
+data/heartbeat
 !data/.gitkeep
 .idea/
 .vscode/

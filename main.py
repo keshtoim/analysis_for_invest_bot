@@ -3,6 +3,7 @@ import asyncio
 from app.db.database import init_db
 from app.loader import bot, dp
 from app.handlers import register_handlers
+from app.services.heartbeat import run_heartbeat_loop
 from app.utils.logger import logger
 
 
@@ -15,6 +16,7 @@ async def main() -> None:
     await init_db()
     register_handlers(dp)
     dp.startup.register(on_startup)
+    asyncio.create_task(run_heartbeat_loop())
     await dp.start_polling(bot)
 
 
