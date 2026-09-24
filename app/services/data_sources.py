@@ -19,21 +19,21 @@ HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
 USER_AGENT = "Mozilla/5.0 (compatible; analysis_for_invest_bot/1.0)"
 
 
-async def fetch_news_snippets(company_name: str) -> list[dict]:
+async def _fetch_news_rss(query: str) -> list[dict]:
     """Бесплатный RSS-фид Google News — без ключа, без анти-бот капчи."""
-    params = {"q": company_name, "hl": "ru", "gl": "RU", "ceid": "RU:ru"}
+    params = {"q": query, "hl": "ru", "gl": "RU", "ceid": "RU:ru"}
     try:
         async with aiohttp.ClientSession(headers={"User-Agent": USER_AGENT}) as session:
             async with session.get(GOOGLE_NEWS_RSS_URL, params=params, timeout=HTTP_TIMEOUT) as response:
                 xml_text = await response.text()
     except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-        logger.warning("Не удалось получить новости для %s: %s", company_name, exc)
+        logger.warning("Не удалось получить новости по запросу «%s»: %s", query, exc)
         return []
 
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as exc:
-        logger.warning("Не удалось разобрать RSS новостей для %s: %s", company_name, exc)
+        logger.warning("Не удалось разобрать RSS новостей по запросу «%s»: %s", query, exc)
         return []
 
     results = []
@@ -51,6 +51,14 @@ async def fetch_news_snippets(company_name: str) -> list[dict]:
             }
         )
     return results
+
+
+async def fetch_news_snippets(company_name: str) -> list[dict]:
+    return await _fetch_news_rss(f"{company_name} компания новости")
+
+
+async def fetch_sector_news_snippets(sector_name: str) -> list[dict]:
+    return await _fetch_news_rss(f"{sector_name} отрасль тренды новости")
 
 
 def _pick_share_security(columns: list[str], rows: list[list]) -> dict | None:

@@ -6,6 +6,7 @@ class AnalysisType(str, Enum):
     PESTEL = "pestel"
     PORTER_FIVE_FORCES = "porter"
     FINANCIAL_MULTIPLES = "financial"
+    SECTOR_OVERVIEW = "sector"
 
 
 ANALYSIS_TYPE_LABELS = {
@@ -13,6 +14,7 @@ ANALYSIS_TYPE_LABELS = {
     AnalysisType.PESTEL: "PESTEL",
     AnalysisType.PORTER_FIVE_FORCES: "5 сил Портера",
     AnalysisType.FINANCIAL_MULTIPLES: "Финансовые мультипликаторы",
+    AnalysisType.SECTOR_OVERVIEW: "Обзор сектора",
 }
 
 ANALYSIS_TYPE_DESCRIPTIONS = {
@@ -25,4 +27,5 @@ ANALYSIS_TYPE_DESCRIPTIONS = {
         "конкуренция, поставщики, покупатели, товары-заменители, барьеры для новых игроков"
     ),
     AnalysisType.FINANCIAL_MULTIPLES: "P/E, P/B, P/S, долговая нагрузка",
+    AnalysisType.SECTOR_OVERVIEW: "размер рынка, тренды, регулирование, ключевые игроки отрасли",
 }
