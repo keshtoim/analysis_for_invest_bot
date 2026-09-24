@@ -16,7 +16,7 @@ from app.models.analysis_type import (
 )
 from app.services.ai_provider import generate_analysis
 from app.services.company_data import get_company_data
-from app.utils.html import escape_html, strip_html
+from app.utils.html import escape_html, sanitize_telegram_html, strip_html
 from app.utils.logger import logger
 
 router = Router()
@@ -98,7 +98,7 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
         return
 
     title = f"<b>{ANALYSIS_TYPE_EMOJI[analysis_type]} {ANALYSIS_TYPE_LABELS[analysis_type]}: {escape_html(company_name)}</b>\n\n"
-    full_text = f"{title}{analysis_text}\n\n{FOOTER_TEXT}"
+    full_text = f"{title}{sanitize_telegram_html(analysis_text)}\n\n{FOOTER_TEXT}"
 
     try:
         await callback.message.answer(full_text)
