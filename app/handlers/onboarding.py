@@ -10,6 +10,7 @@ from app.keyboards.onboarding import (
     experienced_menu_keyboard,
     novice_menu_keyboard,
 )
+from app.constants import DISCLAIMER_TEXT
 from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_LABELS
 
 router = Router()
@@ -24,7 +25,7 @@ NOVICE_HELP_TEXT = (
     "3. Для налоговых льгот можно выбрать ИИС (индивидуальный инвестиционный счёт) "
     "вместо обычного брокерского\n"
     "4. Начинай с суммы, которую не страшно потерять — рынок не гарантирует доходность\n\n"
-    "<i>Это общая информация, а не индивидуальная инвестиционная рекомендация.</i>"
+    f"<i>{DISCLAIMER_TEXT}</i>"
 )
 
 ANALYSIS_TYPES_TEXT = "<b>Какие виды анализа доступны</b>\n\n" + "\n".join(

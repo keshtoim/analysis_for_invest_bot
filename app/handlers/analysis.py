@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.config import ANTI_FLOOD_COOLDOWN_SECONDS
+from app.constants import DISCLAIMER_TEXT
 from app.keyboards.analysis_menu import analysis_type_keyboard
 from app.models.analysis_type import (
     ANALYSIS_TYPE_DESCRIPTIONS,
@@ -21,10 +22,7 @@ from app.utils.logger import logger
 router = Router()
 
 SEND_RETRIES = 2
-FOOTER_TEXT = (
-    "<i>Анализ сформирован автоматически и не является индивидуальной "
-    "инвестиционной рекомендацией.</i>"
-)
+FOOTER_TEXT = f"<i>{DISCLAIMER_TEXT}</i>"
 
 _last_analysis_request: dict[int, float] = {}
 

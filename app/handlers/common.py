@@ -2,6 +2,7 @@ from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
+from app.constants import DISCLAIMER_TEXT
 from app.db.database import upsert_user
 from app.keyboards.onboarding import start_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_LABELS
@@ -15,8 +16,7 @@ HELP_TEXT = (
         f"- <b>{ANALYSIS_TYPE_LABELS[atype]}</b> — {description}"
         for atype, description in ANALYSIS_TYPE_DESCRIPTIONS.items()
     )
-    + "\n\n<i>Анализ формируется автоматически и не является индивидуальной "
-    "инвестиционной рекомендацией.</i>"
+    + f"\n\n<i>{DISCLAIMER_TEXT}</i>"
 )
 
 
@@ -29,7 +29,8 @@ async def cmd_start(message: Message) -> None:
     )
     await message.answer(
         "Привет! Помогу разобраться в компании перед тем, как инвестировать — беру новости "
-        "и биржевые данные и разбираю по нескольким методикам (SWOT, PESTEL и другим).",
+        "и биржевые данные и разбираю по нескольким методикам (SWOT, PESTEL и другим).\n\n"
+        f"<i>{DISCLAIMER_TEXT}</i>",
         reply_markup=start_keyboard(),
     )
 
