@@ -14,7 +14,7 @@ MOEX_MARKETDATA_URL = "https://iss.moex.com/iss/engines/stock/markets/shares/sec
 MOEX_CURRENCY = "RUB"
 MOEX_SHARE_TYPES = ("common_share", "preferred_share")
 
-NEWS_RESULTS_LIMIT = 5
+NEWS_RESULTS_LIMIT = 20
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=10)
 USER_AGENT = "Mozilla/5.0 (compatible; analysis_for_invest_bot/1.0)"
 
