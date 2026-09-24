@@ -16,3 +16,6 @@ HEARTBEAT_PATH = os.getenv("HEARTBEAT_PATH", "data/heartbeat")
 CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "6"))
 ANTI_FLOOD_COOLDOWN_SECONDS = int(os.getenv("ANTI_FLOOD_COOLDOWN_SECONDS", "3"))
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5")
+
+# chat_id владельца бота — доступ к /grant_subscription и /revoke_subscription
+OWNER_CHAT_ID = os.getenv("OWNER_CHAT_ID", "")

@@ -16,6 +16,7 @@ HELP_TEXT = (
         f"- <b>{ANALYSIS_TYPE_LABELS[atype]}</b> — {description}"
         for atype, description in ANALYSIS_TYPE_DESCRIPTIONS.items()
     )
+    + "\n\nСтатус подписки — /subscription."
     + f"\n\n<i>{DISCLAIMER_TEXT}</i>"
 )
 

@@ -73,3 +73,40 @@ async def test_save_company_cache_upserts_by_query():
 
     assert count == 1
     assert await database.get_cached_company_data("Лукойл") == {"v": 2}
+
+
+async def test_get_subscription_returns_none_when_absent():
+    await database.init_db()
+    assert await database.get_subscription(1) is None
+
+
+async def test_grant_subscription_sets_expiry_in_the_future():
+    await database.init_db()
+    await database.grant_subscription(1, days=30)
+
+    sub = await database.get_subscription(1)
+
+    assert sub is not None
+    assert sub["plan"] == "default"
+    assert sub["source"] == "manual"
+    assert datetime.fromisoformat(sub["expires_at"]) > datetime.utcnow() + timedelta(days=29)
+
+
+async def test_grant_subscription_upserts_by_user():
+    await database.init_db()
+    await database.grant_subscription(1, days=10, source="manual")
+    await database.grant_subscription(1, days=30, source="prodamus", external_id="ext-1")
+
+    sub = await database.get_subscription(1)
+
+    assert sub["source"] == "prodamus"
+    assert sub["external_id"] == "ext-1"
+
+
+async def test_revoke_subscription_removes_it():
+    await database.init_db()
+    await database.grant_subscription(1, days=30)
+
+    await database.revoke_subscription(1)
+
+    assert await database.get_subscription(1) is None

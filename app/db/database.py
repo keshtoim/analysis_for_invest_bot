@@ -25,11 +25,25 @@ CREATE TABLE IF NOT EXISTS company_cache (
 )
 """
 
+# source/external_id — под будущий вебхук любого из платёжных сервисов
+# (Prodamus/Paywall.tech/Lava.top); пока заполняются только вручную ("manual").
+CREATE_SUBSCRIPTIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS subscriptions (
+    user_id INTEGER PRIMARY KEY,
+    plan TEXT NOT NULL DEFAULT 'default',
+    source TEXT,
+    external_id TEXT,
+    granted_at TEXT,
+    expires_at TEXT
+)
+"""
+
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_COMPANY_CACHE_TABLE)
+        await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
         await db.commit()
 
 
@@ -78,4 +92,46 @@ async def save_company_cache(company_query: str, raw_data: dict, source: str) ->
             """,
             (company_query, source, json.dumps(raw_data), now.isoformat(), expires_at.isoformat()),
         )
+        await db.commit()
+
+
+async def grant_subscription(
+    user_id: int,
+    days: int,
+    plan: str = "default",
+    source: str = "manual",
+    external_id: str | None = None,
+) -> None:
+    now = datetime.utcnow()
+    expires_at = now + timedelta(days=days)
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO subscriptions (user_id, plan, source, external_id, granted_at, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                plan = excluded.plan,
+                source = excluded.source,
+                external_id = excluded.external_id,
+                granted_at = excluded.granted_at,
+                expires_at = excluded.expires_at
+            """,
+            (user_id, plan, source, external_id, now.isoformat(), expires_at.isoformat()),
+        )
+        await db.commit()
+
+
+async def get_subscription(user_id: int) -> dict | None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM subscriptions WHERE user_id = ?", (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    return dict(row) if row else None
+
+
+async def revoke_subscription(user_id: int) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
         await db.commit()
