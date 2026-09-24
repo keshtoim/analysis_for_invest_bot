@@ -10,3 +10,6 @@ data/heartbeat
 .idea/
 .vscode/
 *.log
+
+# Личные заметки по деплою — не в репозиторий
+DEPLOY.md
