@@ -24,33 +24,33 @@ _SECTOR_CONTEXT_NOTE = "Учитывай также контекст секто�
 _ANALYSIS_INSTRUCTIONS = {
     AnalysisType.SWOT: (
         'Составь SWOT-анализ компании "{company_name}".\n'
-        "Названия разделов оформляй как <b>Strengths</b>, <b>Weaknesses</b>, "
-        f"<b>Opportunities</b>, <b>Threats</b> на отдельной строке.\n{_SECTOR_CONTEXT_NOTE}"
+        "Названия разделов оформляй как <b>💪 Strengths</b>, <b>⚠️ Weaknesses</b>, "
+        f"<b>🚀 Opportunities</b>, <b>🔥 Threats</b> на отдельной строке.\n{_SECTOR_CONTEXT_NOTE}"
     ),
     AnalysisType.PESTEL: (
         'Составь PESTEL-анализ компании "{company_name}".\n'
-        "Названия разделов оформляй как <b>Political</b>, <b>Economic</b>, "
-        "<b>Social</b>, <b>Technological</b>, <b>Environmental</b>, <b>Legal</b> "
+        "Названия разделов оформляй как <b>🏛 Political</b>, <b>💰 Economic</b>, "
+        "<b>👥 Social</b>, <b>💻 Technological</b>, <b>🌱 Environmental</b>, <b>⚖️ Legal</b> "
         f"на отдельной строке.\n{_SECTOR_CONTEXT_NOTE}"
     ),
     AnalysisType.PORTER_FIVE_FORCES: (
         'Составь анализ 5 сил Портера для компании "{company_name}".\n'
-        "Названия разделов оформляй как <b>Competitive Rivalry</b>, "
-        "<b>Supplier Power</b>, <b>Buyer Power</b>, <b>Threat of Substitution</b>, "
-        f"<b>Threat of New Entry</b> на отдельной строке.\n{_SECTOR_CONTEXT_NOTE}"
+        "Названия разделов оформляй как <b>⚔️ Competitive Rivalry</b>, "
+        "<b>📦 Supplier Power</b>, <b>🛒 Buyer Power</b>, <b>🔄 Threat of Substitution</b>, "
+        f"<b>🚪 Threat of New Entry</b> на отдельной строке.\n{_SECTOR_CONTEXT_NOTE}"
     ),
     AnalysisType.FINANCIAL_MULTIPLES: (
         'Оцени компанию "{company_name}" по финансовым мультипликаторам '
         "(P/E, P/B, P/S, долговая нагрузка и т.д.) на основе данных ниже.\n"
         "Если мультипликатор посчитать нельзя из-за нехватки данных — прямо "
-        "напиши об этом, не выдумывай цифры. Раздел <b>Мультипликаторы</b> — "
-        f"что удалось оценить, раздел <b>Ограничения</b> — чего не хватило.\n{_SECTOR_CONTEXT_NOTE}"
+        "напиши об этом, не выдумывай цифры. Раздел <b>📊 Мультипликаторы</b> — "
+        f"что удалось оценить, раздел <b>⚠️ Ограничения</b> — чего не хватило.\n{_SECTOR_CONTEXT_NOTE}"
     ),
     AnalysisType.SECTOR_OVERVIEW: (
         'Составь обзор сектора (отрасли), в котором работает компания "{company_name}" — '
         "не самой компании, а рынка вокруг неё.\n"
-        "Названия разделов оформляй как <b>Market Overview</b>, <b>Trends</b>, "
-        "<b>Regulation</b>, <b>Key Players</b> на отдельной строке."
+        "Названия разделов оформляй как <b>🌐 Market Overview</b>, <b>📈 Trends</b>, "
+        "<b>📜 Regulation</b>, <b>🏢 Key Players</b> на отдельной строке."
     ),
 }
 

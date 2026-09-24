@@ -5,6 +5,7 @@ from app.keyboards.onboarding import (
     BTN_EXPERIENCED,
     BTN_NOVICE,
     BTN_START,
+    continue_keyboard,
     experience_level_keyboard,
     experienced_menu_keyboard,
     novice_menu_keyboard,
@@ -55,7 +56,7 @@ async def handle_experienced(message: Message) -> None:
 @router.callback_query(F.data == "onboarding:novice_help")
 async def handle_novice_help(callback: CallbackQuery) -> None:
     await callback.answer()
-    await callback.message.answer(NOVICE_HELP_TEXT)
+    await callback.message.answer(NOVICE_HELP_TEXT, reply_markup=continue_keyboard())
 
 
 @router.callback_query(F.data == "onboarding:analysis_types")

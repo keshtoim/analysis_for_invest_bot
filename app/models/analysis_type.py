@@ -29,3 +29,11 @@ ANALYSIS_TYPE_DESCRIPTIONS = {
     AnalysisType.FINANCIAL_MULTIPLES: "P/E, P/B, P/S, долговая нагрузка",
     AnalysisType.SECTOR_OVERVIEW: "размер рынка, тренды, регулирование, ключевые игроки отрасли",
 }
+
+ANALYSIS_TYPE_EMOJI = {
+    AnalysisType.SWOT: "📊",
+    AnalysisType.PESTEL: "🌍",
+    AnalysisType.PORTER_FIVE_FORCES: "⚔️",
+    AnalysisType.FINANCIAL_MULTIPLES: "💰",
+    AnalysisType.SECTOR_OVERVIEW: "🏭",
+}

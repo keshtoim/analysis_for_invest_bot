@@ -40,3 +40,11 @@ def experienced_menu_keyboard() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="📋 Виды анализа", callback_data="onboarding:analysis_types")],
         ]
     )
+
+
+def continue_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Понял, дальше", callback_data="onboarding:start_analysis")],
+        ]
+    )
