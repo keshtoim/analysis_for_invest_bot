@@ -9,46 +9,47 @@ from app.keyboards.onboarding import (
     experienced_menu_keyboard,
     novice_menu_keyboard,
 )
-from app.models.analysis_type import ANALYSIS_TYPE_LABELS
+from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_LABELS
 
 router = Router()
 
 NOVICE_HELP_TEXT = (
     "<b>С чего начать инвестировать</b>\n\n"
-    "- Инвестировать самостоятельно можно с 18 лет (до этого — только через "
+    "1. Инвестировать самостоятельно можно с 18 лет (до этого — только через "
     "родителя или опекуна)\n"
-    "- Нужен брокерский счёт — открывается онлайн за 10-15 минут в приложении "
+    "2. Открой брокерский счёт — это делается онлайн за 10-15 минут в приложении "
     "брокера, например «Т-Инвестиции», «Альфа-Инвестиции», «БКС Мир инвестиций» "
     "или «Сбер Инвестор»\n"
-    "- Для налоговых льгот можно открыть ИИС (индивидуальный инвестиционный счёт) "
+    "3. Для налоговых льгот можно выбрать ИИС (индивидуальный инвестиционный счёт) "
     "вместо обычного брокерского\n"
-    "- Начинать стоит с суммы, которую не страшно потерять — рынок не гарантирует доходность\n\n"
+    "4. Начинай с суммы, которую не страшно потерять — рынок не гарантирует доходность\n\n"
     "<i>Это общая информация, а не индивидуальная инвестиционная рекомендация.</i>"
 )
 
 ANALYSIS_TYPES_TEXT = "<b>Какие виды анализа доступны</b>\n\n" + "\n".join(
-    f"- {label}" for label in ANALYSIS_TYPE_LABELS.values()
+    f"- <b>{ANALYSIS_TYPE_LABELS[atype]}</b> — {description}"
+    for atype, description in ANALYSIS_TYPE_DESCRIPTIONS.items()
 )
 
 
 @router.message(F.text == BTN_START)
 async def handle_start_button(message: Message) -> None:
     await message.answer(
-        "Расскажи о себе, чтобы я подсказал, с чего начать:",
+        "Расскажи о себе — так я пойму, с чего лучше начать:",
         reply_markup=experience_level_keyboard(),
     )
 
 
 @router.message(F.text == BTN_NOVICE)
 async def handle_novice(message: Message) -> None:
-    await message.answer("Понял, начнём с основ.", reply_markup=ReplyKeyboardRemove())
-    await message.answer("Что подсказать?", reply_markup=novice_menu_keyboard())
+    await message.answer("Хорошо, начнём с основ 🌱", reply_markup=ReplyKeyboardRemove())
+    await message.answer("Выбери, что интересно:", reply_markup=novice_menu_keyboard())
 
 
 @router.message(F.text == BTN_EXPERIENCED)
 async def handle_experienced(message: Message) -> None:
-    await message.answer("Отлично, тогда сразу к делу.", reply_markup=ReplyKeyboardRemove())
-    await message.answer("Что нужно?", reply_markup=experienced_menu_keyboard())
+    await message.answer("Отлично, сразу к делу.", reply_markup=ReplyKeyboardRemove())
+    await message.answer("Что выбираешь?", reply_markup=experienced_menu_keyboard())
 
 
 @router.callback_query(F.data == "onboarding:novice_help")

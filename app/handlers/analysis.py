@@ -58,8 +58,8 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
         logger.exception("Не удалось получить анализ для «%s»", company_name)
         await _safe_answer(
             callback,
-            "Не получилось получить анализ — источники данных или ИИ временно недоступны. "
-            "Попробуй ещё раз чуть позже.",
+            "Не получилось собрать анализ 😕 Источники данных или ИИ сейчас недоступны — "
+            "попробуй, пожалуйста, через пару минут.",
         )
         return
 

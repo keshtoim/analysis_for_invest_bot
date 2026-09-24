@@ -6,8 +6,8 @@ from aiogram.types import (
 )
 
 BTN_START = "📈 Начать"
-BTN_NOVICE = "🆕 Полный новичок"
-BTN_EXPERIENCED = "📊 Имею опыт"
+BTN_NOVICE = "🌱 Только начинаю"
+BTN_EXPERIENCED = "💼 Уже инвестирую"
 
 
 def start_keyboard() -> ReplyKeyboardMarkup:
@@ -27,7 +27,7 @@ def experience_level_keyboard() -> ReplyKeyboardMarkup:
 def novice_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🧭 Помощь в начинании", callback_data="onboarding:novice_help")],
+            [InlineKeyboardButton(text="🧭 С чего начать", callback_data="onboarding:novice_help")],
             [InlineKeyboardButton(text="📊 Анализ компаний", callback_data="onboarding:start_analysis")],
         ]
     )
@@ -37,6 +37,6 @@ def experienced_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📊 Анализ компаний", callback_data="onboarding:start_analysis")],
-            [InlineKeyboardButton(text="🧾 Виды анализа", callback_data="onboarding:analysis_types")],
+            [InlineKeyboardButton(text="📋 Виды анализа", callback_data="onboarding:analysis_types")],
         ]
     )
