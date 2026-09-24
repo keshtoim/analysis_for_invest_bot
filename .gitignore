@@ -10,6 +10,7 @@ data/heartbeat
 .idea/
 .vscode/
 *.log
+.pytest_cache/
 
 # Личные заметки по деплою — не в репозиторий
 DEPLOY.md
