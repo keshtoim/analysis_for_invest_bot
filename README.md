@@ -1,5 +1,7 @@
 # Analysis for Invest Bot
 
+**Бот в Telegram:** @analysis_for_invest_bot
+
 Telegram-бот для инвесторов, который проводит анализ компаний по открытым источникам
 (новости, биржевые данные) с помощью ИИ (Claude, в том числе через OpenAI-совместимые
 шлюзы вроде Timeweb AI Gateway).
