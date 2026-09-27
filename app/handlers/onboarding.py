@@ -10,7 +10,7 @@ from app.keyboards.onboarding import (
     experienced_menu_keyboard,
     novice_menu_keyboard,
 )
-from app.keyboards.profile import profile_keyboard
+from app.keyboards.main_menu import main_menu_keyboard
 from app.constants import DISCLAIMER_TEXT
 from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_LABELS
 
@@ -45,13 +45,13 @@ async def handle_start_button(message: Message) -> None:
 
 @router.message(F.text == BTN_NOVICE)
 async def handle_novice(message: Message) -> None:
-    await message.answer("Хорошо, начнём с основ 🌱", reply_markup=profile_keyboard())
+    await message.answer("Хорошо, начнём с основ 🌱", reply_markup=main_menu_keyboard())
     await message.answer("Выбери, что интересно:", reply_markup=novice_menu_keyboard())
 
 
 @router.message(F.text == BTN_EXPERIENCED)
 async def handle_experienced(message: Message) -> None:
-    await message.answer("Отлично, сразу к делу.", reply_markup=profile_keyboard())
+    await message.answer("Отлично, сразу к делу.", reply_markup=main_menu_keyboard())
     await message.answer("Что выбираешь?", reply_markup=experienced_menu_keyboard())
 
 

@@ -9,6 +9,7 @@ from app.config import ANTI_FLOOD_COOLDOWN_SECONDS
 from app.constants import DISCLAIMER_TEXT
 from app.db.database import log_analysis_request
 from app.keyboards.analysis_menu import analysis_type_keyboard
+from app.keyboards.main_menu import BTN_ANALYSIS
 from app.models.analysis_type import (
     ANALYSIS_TYPE_DESCRIPTIONS,
     ANALYSIS_TYPE_EMOJI,
@@ -35,6 +36,11 @@ def _analysis_type_menu_text(company_name: str) -> str:
         for atype, description in ANALYSIS_TYPE_DESCRIPTIONS.items()
     ]
     return "\n".join(lines)
+
+
+@router.message(F.text == BTN_ANALYSIS)
+async def handle_analysis_button(message: Message) -> None:
+    await message.answer("Напиши название компании, которую хочешь проанализировать 🙂")
 
 
 @router.message(F.text)
