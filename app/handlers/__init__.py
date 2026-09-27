@@ -1,10 +1,11 @@
 from aiogram import Dispatcher
 
-from app.handlers import analysis, common, onboarding, subscription
+from app.handlers import analysis, common, onboarding, profile, subscription
 
 
 def register_handlers(dp: Dispatcher) -> None:
     dp.include_router(common.router)
     dp.include_router(onboarding.router)
+    dp.include_router(profile.router)
     dp.include_router(subscription.router)
     dp.include_router(analysis.router)
