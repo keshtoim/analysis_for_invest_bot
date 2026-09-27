@@ -120,5 +120,5 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
     await _safe_answer(
         callback,
         f"Хочешь ещё один вид анализа для «{escape_html(company_name)}»?",
-        reply_markup=analysis_type_keyboard(),
+        reply_markup=analysis_type_keyboard(include_new_company=True),
     )
