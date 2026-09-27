@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery, Message
 
 from app.config import ANTI_FLOOD_COOLDOWN_SECONDS
 from app.constants import DISCLAIMER_TEXT
+from app.db.database import log_analysis_request
 from app.keyboards.analysis_menu import analysis_type_keyboard
 from app.models.analysis_type import (
     ANALYSIS_TYPE_DESCRIPTIONS,
@@ -96,6 +97,8 @@ async def handle_analysis_choice(callback: CallbackQuery, state: FSMContext) -> 
             "попробуй, пожалуйста, через пару минут.",
         )
         return
+
+    await log_analysis_request(callback.from_user.id, company_name, analysis_type.value)
 
     title = f"<b>{ANALYSIS_TYPE_EMOJI[analysis_type]} {ANALYSIS_TYPE_LABELS[analysis_type]}: {escape_html(company_name)}</b>\n\n"
     full_text = f"{title}{sanitize_telegram_html(analysis_text)}\n\n{FOOTER_TEXT}"

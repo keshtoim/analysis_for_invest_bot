@@ -38,12 +38,26 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 )
 """
 
+# Лог для /stats — отдельно от company_cache, потому что кэш не растёт при
+# повторных запросах одной и той же компании (там UPSERT), а сюда пишется
+# каждый успешно выполненный анализ.
+CREATE_ANALYSIS_REQUESTS_TABLE = """
+CREATE TABLE IF NOT EXISTS analysis_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    company_name TEXT NOT NULL,
+    analysis_type TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+"""
+
 
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_COMPANY_CACHE_TABLE)
         await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
+        await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
         await db.commit()
 
 
@@ -134,4 +148,16 @@ async def get_subscription(user_id: int) -> dict | None:
 async def revoke_subscription(user_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+        await db.commit()
+
+
+async def log_analysis_request(user_id: int, company_name: str, analysis_type: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            """
+            INSERT INTO analysis_requests (user_id, company_name, analysis_type, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, company_name, analysis_type, datetime.utcnow().isoformat()),
+        )
         await db.commit()
