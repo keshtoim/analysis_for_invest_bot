@@ -9,6 +9,17 @@ from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_L
 
 router = Router()
 
+START_TEXT = (
+    "Привет!\n\n"
+    "<b>Что умеет этот бот?</b>\n\n"
+    "Присылаешь название компании — бот собирает свежие новости и биржевые данные "
+    "(MOEX) и разбирает её по одной из пяти методик: SWOT, PESTEL, 5 сил Портера, "
+    "финансовые мультипликаторы или обзор сектора.\n\n"
+    "Сектор компании ИИ определяет сам и учитывает его контекст в каждом анализе — "
+    "не только саму компанию, но и рынок вокруг неё.\n\n"
+    f"<i>{DISCLAIMER_TEXT}</i>"
+)
+
 HELP_TEXT = (
     "Я анализирую компании по открытым источникам (новости, данные MOEX) с помощью ИИ.\n\n"
     "Как пользоваться: напиши название компании, затем выбери вид анализа:\n"
@@ -28,12 +39,7 @@ async def cmd_start(message: Message) -> None:
         username=message.from_user.username,
         first_name=message.from_user.first_name,
     )
-    await message.answer(
-        "Привет! Помогу разобраться в компании перед тем, как инвестировать — беру новости "
-        "и биржевые данные и разбираю по нескольким методикам (SWOT, PESTEL и другим).\n\n"
-        f"<i>{DISCLAIMER_TEXT}</i>",
-        reply_markup=start_keyboard(),
-    )
+    await message.answer(START_TEXT, reply_markup=start_keyboard())
 
 
 @router.message(Command("help"))
