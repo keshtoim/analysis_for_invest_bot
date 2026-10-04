@@ -29,6 +29,7 @@ def _empty_stats() -> dict:
         "requests_by_type": [],
         "cached_companies": 0,
         "active_subscriptions": 0,
+        "blocked_users": 0,
         "bot_alive": True,
     }
 
@@ -74,3 +75,12 @@ def test_format_stats_falls_back_for_unknown_type():
     text = subscription._format_stats(stats)
 
     assert "unknown_type: 1" in text
+
+
+def test_format_stats_includes_blocked_count():
+    stats = _empty_stats()
+    stats["blocked_users"] = 2
+
+    text = subscription._format_stats(stats)
+
+    assert "Заблокировано: 2" in text

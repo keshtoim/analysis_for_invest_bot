@@ -73,6 +73,7 @@ async def get_stats() -> dict:
             "SELECT COUNT(*) FROM subscriptions WHERE expires_at > ?",
             (datetime.utcnow().isoformat(),),
         )
+        blocked_users = await scalar("SELECT COUNT(*) FROM users WHERE is_blocked = 1")
 
     return {
         "total_users": total_users,
@@ -86,5 +87,6 @@ async def get_stats() -> dict:
         "requests_by_type": requests_by_type,
         "cached_companies": cached_companies,
         "active_subscriptions": active_subscriptions,
+        "blocked_users": blocked_users,
         "bot_alive": is_alive(),
     }

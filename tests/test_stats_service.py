@@ -22,6 +22,7 @@ async def test_stats_on_empty_db():
     assert stats["requests_by_type"] == []
     assert stats["cached_companies"] == 0
     assert stats["active_subscriptions"] == 0
+    assert stats["blocked_users"] == 0
 
 
 async def test_stats_counts_users_and_requests():
@@ -74,3 +75,14 @@ async def test_stats_counts_active_subscriptions():
     stats = await stats_service.get_stats()
 
     assert stats["active_subscriptions"] == 1
+
+
+async def test_stats_counts_blocked_users():
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+    await database.upsert_user(user_id=2, username="bob", first_name="Bob")
+    await database.block_user(1)
+
+    stats = await stats_service.get_stats()
+
+    assert stats["blocked_users"] == 1

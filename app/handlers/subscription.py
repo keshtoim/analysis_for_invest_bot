@@ -5,7 +5,13 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
 from app.config import OWNER_CHAT_ID
-from app.db.database import get_subscription, grant_subscription, revoke_subscription
+from app.db.database import (
+    block_user,
+    get_subscription,
+    grant_subscription,
+    revoke_subscription,
+    unblock_user,
+)
 from app.keyboards.subscription import subscription_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_LABELS, AnalysisType
 from app.services.stats_service import get_stats
@@ -82,6 +88,54 @@ async def cmd_revoke_subscription(message: Message, command: CommandObject) -> N
     await message.answer(f"Подписка отозвана: user_id={target_user_id}")
 
 
+@router.message(Command("block_user"))
+async def cmd_block_user(message: Message, command: CommandObject) -> None:
+    if not _is_owner(message.from_user.id):
+        return
+
+    args = (command.args or "").split()
+    if len(args) != 1:
+        await message.answer("Формат: /block_user <user_id>")
+        return
+
+    try:
+        target_user_id = int(args[0])
+    except ValueError:
+        await message.answer("user_id должен быть числом.")
+        return
+
+    found = await block_user(target_user_id)
+    if not found:
+        await message.answer(f"Юзер user_id={target_user_id} не найден — он ещё ни разу не писал боту.")
+        return
+
+    await message.answer(f"Пользователь заблокирован: user_id={target_user_id}")
+
+
+@router.message(Command("unblock_user"))
+async def cmd_unblock_user(message: Message, command: CommandObject) -> None:
+    if not _is_owner(message.from_user.id):
+        return
+
+    args = (command.args or "").split()
+    if len(args) != 1:
+        await message.answer("Формат: /unblock_user <user_id>")
+        return
+
+    try:
+        target_user_id = int(args[0])
+    except ValueError:
+        await message.answer("user_id должен быть числом.")
+        return
+
+    found = await unblock_user(target_user_id)
+    if not found:
+        await message.answer(f"Юзер user_id={target_user_id} не найден.")
+        return
+
+    await message.answer(f"Пользователь разблокирован: user_id={target_user_id}")
+
+
 def _format_stats(stats: dict) -> str:
     lines = [
         "<b>📊 Статистика бота</b>",
@@ -90,6 +144,7 @@ def _format_stats(stats: dict) -> str:
         f"- Всего: {stats['total_users']}",
         f"- Новых за 24ч: {stats['new_users_24h']}",
         f"- Новых за 7д: {stats['new_users_7d']}",
+        f"- Заблокировано: {stats['blocked_users']}",
         "",
         "<b>Запросы анализа</b>",
         f"- Всего: {stats['total_requests']}",

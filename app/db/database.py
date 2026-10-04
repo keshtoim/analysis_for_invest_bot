@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
     user_id INTEGER PRIMARY KEY,
     username TEXT,
     first_name TEXT,
-    joined_at TEXT DEFAULT CURRENT_TIMESTAMP
+    joined_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    is_blocked INTEGER NOT NULL DEFAULT 0
 )
 """
 
@@ -52,12 +53,21 @@ CREATE TABLE IF NOT EXISTS analysis_requests (
 """
 
 
+async def _ensure_users_is_blocked_column(db: aiosqlite.Connection) -> None:
+    """Для БД, созданных до появления блокировки — ALTER TABLE не умеет IF NOT EXISTS."""
+    async with db.execute("PRAGMA table_info(users)") as cursor:
+        columns = [row[1] async for row in cursor]
+    if "is_blocked" not in columns:
+        await db.execute("ALTER TABLE users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0")
+
+
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_USERS_TABLE)
         await db.execute(CREATE_COMPANY_CACHE_TABLE)
         await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
         await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
+        await _ensure_users_is_blocked_column(db)
         await db.commit()
 
 
@@ -149,6 +159,30 @@ async def revoke_subscription(user_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
         await db.commit()
+
+
+async def block_user(user_id: int) -> bool:
+    """True, если юзер с таким user_id вообще найден (и заблокирован)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("UPDATE users SET is_blocked = 1 WHERE user_id = ?", (user_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def unblock_user(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("UPDATE users SET is_blocked = 0 WHERE user_id = ?", (user_id,))
+        await db.commit()
+        return cursor.rowcount > 0
+
+
+async def is_user_blocked(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT is_blocked FROM users WHERE user_id = ?", (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+    return bool(row and row[0])
 
 
 async def log_analysis_request(user_id: int, company_name: str, analysis_type: str) -> None:

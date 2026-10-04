@@ -110,3 +110,52 @@ async def test_revoke_subscription_removes_it():
     await database.revoke_subscription(1)
 
     assert await database.get_subscription(1) is None
+
+
+async def test_new_user_is_not_blocked_by_default():
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+
+    assert await database.is_user_blocked(1) is False
+
+
+async def test_block_user_sets_flag():
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+
+    found = await database.block_user(1)
+
+    assert found is True
+    assert await database.is_user_blocked(1) is True
+
+
+async def test_unblock_user_clears_flag():
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+    await database.block_user(1)
+
+    found = await database.unblock_user(1)
+
+    assert found is True
+    assert await database.is_user_blocked(1) is False
+
+
+async def test_block_user_returns_false_for_unknown_user():
+    await database.init_db()
+    assert await database.block_user(999) is False
+
+
+async def test_is_user_blocked_false_for_unknown_user():
+    await database.init_db()
+    assert await database.is_user_blocked(999) is False
+
+
+async def test_init_db_is_idempotent_with_is_blocked_column():
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+    await database.block_user(1)
+
+    # Повторный init_db (как при каждом рестарте бота) не должен ломать данные
+    await database.init_db()
+
+    assert await database.is_user_blocked(1) is True
