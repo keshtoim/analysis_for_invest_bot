@@ -41,6 +41,15 @@ async def test_company_cache_hit_returns_saved_data():
     assert cached == data
 
 
+async def test_company_cache_hit_is_case_and_whitespace_insensitive():
+    await database.init_db()
+    data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
+    await database.save_company_cache("Лукойл", data, source="test")
+
+    assert await database.get_cached_company_data(" ЛУКОЙЛ ") == data
+    assert await database.get_cached_company_data("лукойл") == data
+
+
 async def test_expired_company_cache_is_ignored(monkeypatch):
     await database.init_db()
     data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
@@ -53,7 +62,7 @@ async def test_expired_company_cache_is_ignored(monkeypatch):
     async with aiosqlite.connect(database.DB_PATH) as db:
         await db.execute(
             "UPDATE company_cache SET expires_at = ? WHERE company_query = ?",
-            (past, "Лукойл"),
+            (past, database._normalize_company_query("Лукойл")),
         )
         await db.commit()
 

@@ -86,12 +86,17 @@ async def upsert_user(user_id: int, username: str | None, first_name: str | None
         await db.commit()
 
 
+def _normalize_company_query(company_query: str) -> str:
+    """"Лукойл"/"ЛУКОЙЛ"/"лукойл " — один и тот же ключ кэша."""
+    return company_query.strip().casefold()
+
+
 async def get_cached_company_data(company_query: str) -> dict | None:
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT raw_data, expires_at FROM company_cache WHERE company_query = ?",
-            (company_query,),
+            (_normalize_company_query(company_query),),
         ) as cursor:
             row = await cursor.fetchone()
 
@@ -114,7 +119,13 @@ async def save_company_cache(company_query: str, raw_data: dict, source: str) ->
                 fetched_at = excluded.fetched_at,
                 expires_at = excluded.expires_at
             """,
-            (company_query, source, json.dumps(raw_data), now.isoformat(), expires_at.isoformat()),
+            (
+                _normalize_company_query(company_query),
+                source,
+                json.dumps(raw_data),
+                now.isoformat(),
+                expires_at.isoformat(),
+            ),
         )
         await db.commit()
 
