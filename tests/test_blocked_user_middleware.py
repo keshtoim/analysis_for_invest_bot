@@ -4,12 +4,14 @@ import pytest
 from aiogram.types import CallbackQuery, Message
 
 from app.db import database
+from app.middlewares import blocked_user as blocked_user_middleware_module
 from app.middlewares.blocked_user import BLOCKED_TEXT, BlockedUserMiddleware
 
 
 @pytest.fixture(autouse=True)
 def _use_temp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "DB_PATH", str(tmp_path / "test.db"))
+    blocked_user_middleware_module._cache.clear()
 
 
 def _fake_user(user_id: int) -> MagicMock:
@@ -74,3 +76,28 @@ async def test_missing_event_from_user_passes_through():
 
     handler.assert_awaited_once()
     assert result == "handled"
+
+
+async def test_block_status_is_cached_between_calls(monkeypatch):
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+
+    spy = AsyncMock(wraps=database.is_user_blocked)
+    monkeypatch.setattr(blocked_user_middleware_module, "is_user_blocked", spy)
+
+    assert await blocked_user_middleware_module._is_blocked_cached(1) is False
+    assert await blocked_user_middleware_module._is_blocked_cached(1) is False
+
+    spy.assert_awaited_once()
+
+
+async def test_block_status_cache_expires_after_ttl(monkeypatch):
+    await database.init_db()
+    await database.upsert_user(user_id=1, username="alice", first_name="Alice")
+    monkeypatch.setattr(blocked_user_middleware_module, "CACHE_TTL_SECONDS", 0)
+
+    assert await blocked_user_middleware_module._is_blocked_cached(1) is False
+
+    await database.block_user(1)
+
+    assert await blocked_user_middleware_module._is_blocked_cached(1) is True
