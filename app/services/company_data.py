@@ -1,3 +1,5 @@
+import asyncio
+
 from app.db.database import get_cached_company_data, save_company_cache
 from app.services.ai_provider import identify_sector
 from app.services.data_sources import fetch_raw_company_data, fetch_sector_news_snippets
@@ -24,8 +26,11 @@ async def get_company_data(company_name: str) -> dict:
     if cached is not None:
         return cached
 
-    raw_data = await fetch_raw_company_data(company_name)
-    raw_data["sector"] = await _fetch_sector_data(company_name)
+    raw_data, sector_data = await asyncio.gather(
+        fetch_raw_company_data(company_name),
+        _fetch_sector_data(company_name),
+    )
+    raw_data["sector"] = sector_data
 
     await save_company_cache(company_name, raw_data, source=SOURCE_NAME)
     return raw_data
