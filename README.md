@@ -304,7 +304,7 @@ flowchart TD
     Flood -- да --> WaitMsg[Короткое уведомление: подожди] --> End1([Конец])
     Flood -- нет --> Cache{Данные о компании<br/>есть в кэше и не устарели?}
     Cache -- да --> UseCache[Взять компанию + сектор из кэша]
-    Cache -- нет --> Fetch[Новости компании + MOEX]
+    Cache -- нет --> Fetch[Параллельно: новости+MOEX / определение сектора]
     Fetch --> Sector{Удалось определить сектор?}
     Sector -- да --> SectorNews[Подтянуть новости сектора]
     Sector -- нет --> NoSector[Сектор = null, идём дальше]
@@ -317,6 +317,53 @@ flowchart TD
     Sanitize --> Send[Заголовок + текст + дисклеймер]
     Send --> Offer[Предложить ещё один вид анализа для той же компании]
     Offer --> End2([Конец])
+```
+
+## Диаграмма последовательности (Sequence Diagram)
+
+Основной сценарий — запрос анализа, с реальным кэш-хитом/миссом и
+параллельным сбором company/sector данных (`asyncio.gather`):
+
+```mermaid
+sequenceDiagram
+    actor U as Пользователь
+    participant TG as Telegram API
+    participant BM as BlockedUserMiddleware
+    participant H as AnalysisHandler
+    participant CDS as CompanyDataService
+    participant DB as SQLite
+    participant DS as DataSources<br/>(Google News / MOEX)
+    participant AI as AIProvider
+
+    U->>TG: Выбирает вид анализа
+    TG->>BM: callback_query
+    BM->>DB: is_blocked? (TTL-кэш)
+    DB-->>BM: нет
+    BM->>H: пропускает дальше
+    H->>H: анти-флуд (TTL в памяти)
+    H->>CDS: get_company_data(company_name)
+    CDS->>DB: get_cached_company_data()
+    alt кэш свежий
+        DB-->>CDS: raw_data
+    else кэш пуст/устарел
+        par сбор company-данных
+            CDS->>DS: fetch_raw_company_data()
+            DS-->>CDS: новости + MOEX
+        and сбор sector-данных
+            CDS->>AI: identify_sector()
+            AI-->>CDS: название сектора
+            CDS->>DS: fetch_sector_news_snippets()
+            DS-->>CDS: новости сектора
+        end
+        CDS->>DB: save_company_cache()
+    end
+    CDS-->>H: company_data
+    H->>AI: generate_analysis(company_data, type)
+    AI-->>H: текст анализа
+    H->>DB: log_analysis_request()
+    H->>H: sanitize_telegram_html()
+    H->>TG: заголовок + текст + дисклеймер
+    TG->>U: показать сообщение
 ```
 
 ## Карта прецедентов (Use Case Diagram)
