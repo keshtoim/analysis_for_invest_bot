@@ -168,3 +168,38 @@ async def test_init_db_is_idempotent_with_is_blocked_column():
     await database.init_db()
 
     assert await database.is_user_blocked(1) is True
+
+
+async def test_get_user_messages_empty_for_unknown_user():
+    await database.init_db()
+    assert await database.get_user_messages(1) == []
+
+
+async def test_log_message_appears_in_history():
+    await database.init_db()
+    await database.log_message(1, "Лукойл")
+    await database.log_message(1, "Сбербанк")
+
+    history = await database.get_user_messages(1)
+
+    assert [m["text"] for m in history] == ["Лукойл", "Сбербанк"]
+
+
+async def test_get_user_messages_oldest_first_within_limit():
+    await database.init_db()
+    for i in range(5):
+        await database.log_message(1, f"msg{i}")
+
+    history = await database.get_user_messages(1, limit=3)
+
+    assert [m["text"] for m in history] == ["msg2", "msg3", "msg4"]
+
+
+async def test_get_user_messages_scoped_to_user():
+    await database.init_db()
+    await database.log_message(1, "от юзера 1")
+    await database.log_message(2, "от юзера 2")
+
+    history = await database.get_user_messages(1)
+
+    assert [m["text"] for m in history] == ["от юзера 1"]

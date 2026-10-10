@@ -8,6 +8,7 @@ from app.config import OWNER_CHAT_ID
 from app.db.database import (
     block_user,
     get_subscription,
+    get_user_messages,
     grant_subscription,
     revoke_subscription,
     unblock_user,
@@ -134,6 +135,34 @@ async def cmd_unblock_user(message: Message, command: CommandObject) -> None:
         return
 
     await message.answer(f"Пользователь разблокирован: user_id={target_user_id}")
+
+
+@router.message(Command("user_history"))
+async def cmd_user_history(message: Message, command: CommandObject) -> None:
+    if not _is_owner(message.from_user.id):
+        return
+
+    args = (command.args or "").split()
+    if len(args) != 1:
+        await message.answer("Формат: /user_history <user_id>")
+        return
+
+    try:
+        target_user_id = int(args[0])
+    except ValueError:
+        await message.answer("user_id должен быть числом.")
+        return
+
+    history = await get_user_messages(target_user_id)
+    if not history:
+        await message.answer(f"История пуста: user_id={target_user_id}")
+        return
+
+    lines = [f"<b>История сообщений</b> user_id={target_user_id} (последние {len(history)}):", ""]
+    for item in history:
+        lines.append(f"[{item['created_at'][:16]}] {escape_html(item['text'])}")
+
+    await message.answer("\n".join(lines))
 
 
 def _format_stats(stats: dict) -> str:

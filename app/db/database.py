@@ -53,6 +53,16 @@ CREATE TABLE IF NOT EXISTS analysis_requests (
 """
 
 
+CREATE_MESSAGES_TABLE = """
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+)
+"""
+
+
 async def _ensure_users_is_blocked_column(db: aiosqlite.Connection) -> None:
     """Для БД, созданных до появления блокировки — ALTER TABLE не умеет IF NOT EXISTS."""
     async with db.execute("PRAGMA table_info(users)") as cursor:
@@ -67,6 +77,7 @@ async def init_db() -> None:
         await db.execute(CREATE_COMPANY_CACHE_TABLE)
         await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
         await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
+        await db.execute(CREATE_MESSAGES_TABLE)
         await _ensure_users_is_blocked_column(db)
         await db.commit()
 
@@ -194,6 +205,26 @@ async def is_user_blocked(user_id: int) -> bool:
         ) as cursor:
             row = await cursor.fetchone()
     return bool(row and row[0])
+
+
+async def log_message(user_id: int, text: str) -> None:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO messages (user_id, text, created_at) VALUES (?, ?, ?)",
+            (user_id, text, datetime.utcnow().isoformat()),
+        )
+        await db.commit()
+
+
+async def get_user_messages(user_id: int, limit: int = 20) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT text, created_at FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [dict(row) for row in reversed(rows)]
 
 
 async def log_analysis_request(user_id: int, company_name: str, analysis_type: str) -> None:
