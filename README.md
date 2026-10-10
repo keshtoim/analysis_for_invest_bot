@@ -194,7 +194,7 @@ erDiagram
     }
 
     COMPANY_MARKET_DATA {
-        int company_id PK_FK
+        int company_id PK,FK
         string ticker
         float last_price
         float change_percent
