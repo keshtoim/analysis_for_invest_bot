@@ -26,9 +26,10 @@ Telegram-бот для инвесторов, который проводит а�
 пока нет ни через один платёжный сервис, но структура (таблица подписок, ручная
 выдача владельцем, `/subscription`) уже готова принять вебхук, когда он появится.
 
-Владельцу бота (`OWNER_CHAT_ID`) доступны `/stats` с аналитикой по использованию
-и ручная блокировка юзеров (`/block_user`, `/unblock_user`) — заблокированному
-глобальная миддлварь режет вообще любое действие, ещё до хендлера.
+Владельцу бота (`OWNER_CHAT_ID`) доступны `/stats` с аналитикой по использованию,
+`/user_history` с историей сообщений конкретного юзера и ручная блокировка
+(`/block_user`, `/unblock_user`) — заблокированному глобальная миддлварь режет
+вообще любое действие, ещё до хендлера.
 
 ## MVP-сценарий
 
@@ -66,6 +67,7 @@ Telegram-бот для инвесторов, который проводит а�
 | `/revoke_subscription <user_id>` | только `OWNER_CHAT_ID` | Отозвать подписку |
 | `/block_user <user_id>` | только `OWNER_CHAT_ID` | Заблокировать юзера — любое его действие режется миддлварью |
 | `/unblock_user <user_id>` | только `OWNER_CHAT_ID` | Разблокировать |
+| `/user_history <user_id>` | только `OWNER_CHAT_ID` | Последние 20 сообщений юзера, старые сверху |
 
 ## Ключевые возможности
 
@@ -83,9 +85,10 @@ Telegram-бот для инвесторов, который проводит а�
 | Устойчивость к сбоям | Ретраи при сетевых обрывах Telegram, понятная ошибка вместо тишины при недоступности ИИ/источников |
 | Compliance | Единый дисклеймер («аналитика, не инвестрекомендация») во всех аналитических и справочных текстах |
 | Модерация | Блокировка юзеров (`is_blocked` в `users`) — глобальная миддлварь режет любое взаимодействие заблокированного до хендлера, не точечно |
-| Монетизация (структура) | Таблица `subscriptions`, ручная выдача владельцем — без гейта на функциях и без реального платёжного вебхука, но готово его принять |
-| Хранение | Локальная SQLite: пользователи (+ флаг блокировки), кэш компаний, подписки, лог запросов анализа |
-| Тесты | pytest, 83 теста на кэш/анти-флуд/выбор бумаги на MOEX/сборку промптов/санитайзер/healthcheck/статистику/блокировку |
+| Монетизация (структура) | `subscriptions` (текущее состояние) + `subscription_events` (аудит-лог выдач/отзывов), ручная выдача владельцем — без гейта на функциях и без реального платёжного вебхука, но готово его принять |
+| История сообщений | Каждое текстовое сообщение логируется (`messages`), владелец смотрит через `/user_history` |
+| Хранение | Локальная SQLite в 3NF: 10 таблиц (users, companies, sectors, company_news, sector_news, company_market_data, subscriptions, subscription_events, analysis_requests, messages) — см. ER-диаграмму |
+| Тесты | pytest, 97 тестов на кэш/анти-флуд/выбор бумаги на MOEX/сборку промптов/санитайзер/healthcheck/статистику/блокировку/миграции схемы |
 | Деплой | Docker + docker-compose, heartbeat-healthcheck, `cloud-init.sh` для чистого сервера, CI на GitHub Actions (сборка образа + тесты на каждый push/PR) |
 
 ## Архитектура системы
@@ -100,6 +103,7 @@ graph TD
     end
 
     subgraph APP["Бот-приложение (aiogram, Docker)"]
+        ML[MessageLoggingMiddleware]
         BM[BlockedUserMiddleware<br/>TTL-кэш, глобально]
         H[Handlers: common / onboarding /<br/>profile / subscription / analysis]
         AF[Анти-флуд<br/>на выборе вида анализа]
@@ -116,11 +120,13 @@ graph TD
         AI[Claude<br/>напрямую или через шлюз]
     end
 
-    DB[(SQLite<br/>users, company_cache,<br/>subscriptions, analysis_requests)]
+    DB[(SQLite, 3NF<br/>users, companies+sectors+news,<br/>subscriptions(+events), analysis_requests,<br/>messages)]
 
     U <--> API
     OWNER <--> API
-    API <--> BM
+    API <--> ML
+    ML --> DB
+    ML --> BM
     BM --> H
     BM --> DB
     H --> AF
@@ -141,9 +147,10 @@ graph TD
 
 ## Схема базы данных (ER Diagram)
 
-Только то, что реально персистится (анти-флуд — в памяти, не в БД). История
-запросов пользователю не показывается — `ANALYSIS_REQUESTS` пишется только
-для `/stats`, юзер к этим данным доступа не имеет:
+3NF: кэш компаний больше не JSON-блок, а пять связанных таблиц (повторяющиеся
+группы — новости — вынесены отдельно, сектор переиспользуется между компаниями).
+Анти-флуд — в памяти, не в БД. История сообщений/запросов не показывается
+пользователю — `MESSAGES`/`ANALYSIS_REQUESTS` читает только владелец:
 
 ```mermaid
 erDiagram
@@ -155,13 +162,44 @@ erDiagram
         bool is_blocked
     }
 
-    COMPANY_CACHE {
+    SECTORS {
         int id PK
-        string company_query
-        string source
-        json raw_data
+        string name
         datetime fetched_at
         datetime expires_at
+    }
+
+    COMPANIES {
+        int id PK
+        string name
+        int sector_id FK
+        datetime fetched_at
+        datetime expires_at
+    }
+
+    COMPANY_NEWS {
+        int id PK
+        int company_id FK
+        string title
+        string snippet
+        string url
+    }
+
+    SECTOR_NEWS {
+        int id PK
+        int sector_id FK
+        string title
+        string snippet
+        string url
+    }
+
+    COMPANY_MARKET_DATA {
+        int company_id PK_FK
+        string ticker
+        float last_price
+        float change_percent
+        float market_cap
+        string currency
     }
 
     SUBSCRIPTIONS {
@@ -173,29 +211,65 @@ erDiagram
         datetime expires_at
     }
 
+    SUBSCRIPTION_EVENTS {
+        int id PK
+        int user_id
+        string action
+        string source
+        string external_id
+        datetime created_at
+    }
+
     ANALYSIS_REQUESTS {
         int id PK
         int user_id
-        string company_name
+        int company_id FK
         string analysis_type
         datetime created_at
     }
 
+    MESSAGES {
+        int id PK
+        int user_id
+        string text
+        datetime created_at
+    }
+
+    SECTORS ||--o{ COMPANIES : "sector_id"
+    SECTORS ||--o{ SECTOR_NEWS : "sector_id"
+    COMPANIES ||--o{ COMPANY_NEWS : "company_id"
+    COMPANIES ||--o| COMPANY_MARKET_DATA : "company_id"
+    COMPANIES ||--o{ ANALYSIS_REQUESTS : "company_id"
     USERS ||--o| SUBSCRIPTIONS : "user_id (не FK)"
+    USERS ||--o{ SUBSCRIPTION_EVENTS : "user_id (не FK)"
     USERS ||--o{ ANALYSIS_REQUESTS : "user_id (не FK)"
+    USERS ||--o{ MESSAGES : "user_id (не FK)"
 ```
 
-`COMPANY_CACHE` не связана ни с чем — кэш общий для всех пользователей, не
-привязан к конкретному юзеру. `raw_data` — единый JSON-блок: новости компании,
-данные MOEX и вложенный объект сектора (`{name, news}`) — отдельной таблицы под
-сектор нет, он живёт внутри той же строки кэша.
+`SECTORS`/`COMPANIES`/`COMPANY_NEWS`/`SECTOR_NEWS`/`COMPANY_MARKET_DATA`,
+`COMPANIES`→`ANALYSIS_REQUESTS` — настоящие `FOREIGN KEY` в схеме. Связи через
+`user_id` (`USERS` → остальные) — только по значению, без `FOREIGN KEY`:
+единственная причина — `users` создаётся при `/start`, а остальные таблицы
+пишутся раньше или независимо от этого момента, добавлять constraint ради
+единообразия не стали.
 
-`SUBSCRIPTIONS` и `ANALYSIS_REQUESTS` логически ссылаются на `USERS` через
-`user_id`, но реального `FOREIGN KEY` в схеме нет — связь только по значению.
+`COMPANIES`/`SECTORS` хранят `name` нормализованным (`strip().casefold()`) —
+это и есть ключ дедупликации, отдельной колонки под «красивое» отображаемое
+имя нет: пользователь каждый раз видит название в своём регистре (берётся из
+текущего запроса), а не из кэша.
+
+Сектор переиспользуется между компаниями: при сохранении новой компании
+`_upsert_sector` сначала проверяет, не свежий ли уже сектор с таким именем
+(могла обновить другая компания той же отрасли) — если да, новости сектора не
+перезапрашиваются и не перезаписываются.
+
 `ANALYSIS_REQUESTS` пишется при каждом успешном анализе (не только новом —
 даже повторный запрос по компании из кэша считается) и существует исключительно
-для `/stats`; `COMPANY_CACHE` для этого не годится, потому что там `UPSERT`
-и повторные запросы одной компании не растят счётчик.
+для `/stats`; счётчик компаний в кэше для этого не годится, потому что там
+`UPSERT` и повторные запросы одной компании не растят счётчик.
+
+`SUBSCRIPTION_EVENTS` — аудит-лог: `SUBSCRIPTIONS` хранит только текущее
+состояние, без истории выдач/отзывов.
 
 ## Доменная модель (Class Diagram)
 
@@ -219,6 +293,7 @@ classDiagram
     }
 
     class CompanyData {
+        <<DTO>>
         +str company_name
         +list~dict~ news
         +dict moex
@@ -226,8 +301,38 @@ classDiagram
     }
 
     class SectorInfo {
+        <<DTO>>
         +str name
         +list~dict~ news
+    }
+
+    class Company {
+        +int id
+        +str name
+        +int sector_id
+        +datetime fetched_at
+        +datetime expires_at
+    }
+
+    class Sector {
+        +int id
+        +str name
+        +datetime fetched_at
+        +datetime expires_at
+    }
+
+    class NewsItem {
+        +str title
+        +str snippet
+        +str url
+    }
+
+    class MarketData {
+        +str ticker
+        +float last_price
+        +float change_percent
+        +float market_cap
+        +str currency
     }
 
     class CompanyDataService {
@@ -272,10 +377,30 @@ classDiagram
         +get_stats() dict
     }
 
+    class Message {
+        +int id
+        +int user_id
+        +str text
+        +datetime created_at
+    }
+
+    class SubscriptionEvent {
+        +int user_id
+        +str action
+        +str source
+        +datetime created_at
+    }
+
     CompanyDataService --> DataSource
     CompanyDataService --> CompanyData
     CompanyDataService --> AIProvider : identify_sector
     CompanyData --> SectorInfo
+    CompanyDataService ..> Company : читает/пишет
+    CompanyDataService ..> Sector : читает/пишет
+    Company --> Sector
+    Company --> NewsItem
+    Company --> MarketData
+    Sector --> NewsItem
     AIProvider <|.. AnthropicProvider
     AIProvider <|.. OpenAICompatibleProvider
     DataSource <|.. GoogleNewsSource
@@ -283,9 +408,18 @@ classDiagram
     CompanyData --> AnalysisType
     SubscriptionService --> Subscription
     Subscription --> User
+    SubscriptionService ..> SubscriptionEvent : логирует
     StatsService --> User
     StatsService --> Subscription
+    StatsService --> Company
+    Message --> User
 ```
+
+`CompanyData`/`SectorInfo` — DTO, та же форма словаря, что всегда возвращал
+`get_company_data()`; `Company`/`Sector`/`NewsItem`/`MarketData` — как это на
+самом деле лежит в SQLite. `CompanyDataService` реконструирует DTO из таблиц
+при каждом вызове — остальной код (`AIProvider`, хендлеры) о нормализации не
+знает и не менялся при переходе на 3NF.
 
 `SubscriptionService.is_subscribed()` пока нигде не вызывается как гейт — функция
 существует, но ни одна фича бота не проверяет подписку перед выполнением. В
@@ -386,6 +520,7 @@ flowchart LR
     UC8([Посмотреть статистику бота])
     UC9([Выдать/отозвать подписку вручную])
     UC10([Заблокировать/разблокировать юзера])
+    UC11([Посмотреть историю сообщений юзера])
 
     Investor --> UC1
     Investor --> UC3
@@ -395,6 +530,7 @@ flowchart LR
     Owner --> UC8
     Owner --> UC9
     Owner --> UC10
+    Owner --> UC11
     UC4 -.включает для новичка.-> UC5
     UC1 -.включает.-> UC2
     UC1 -.использует.-> News
