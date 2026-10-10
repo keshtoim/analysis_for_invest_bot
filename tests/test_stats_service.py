@@ -51,8 +51,9 @@ async def test_stats_top_companies_ordered_by_count():
 
     stats = await stats_service.get_stats()
 
-    assert stats["top_companies"][0] == ("Лукойл", 3)
-    assert stats["top_companies"][1] == ("Сбербанк", 1)
+    # Имя компании в БД нормализовано (strip+casefold)
+    assert stats["top_companies"][0] == ("лукойл", 3)
+    assert stats["top_companies"][1] == ("сбербанк", 1)
 
 
 async def test_stats_requests_by_type():

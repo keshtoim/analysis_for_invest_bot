@@ -80,14 +80,14 @@ CREATE TABLE IF NOT EXISTS subscriptions (
 )
 """
 
-# Лог для /stats — отдельно от company_cache, потому что кэш не растёт при
+# Лог для /stats — отдельно от companies, потому что кэш не растёт при
 # повторных запросах одной и той же компании (там UPSERT), а сюда пишется
 # каждый успешно выполненный анализ.
 CREATE_ANALYSIS_REQUESTS_TABLE = """
 CREATE TABLE IF NOT EXISTS analysis_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    company_name TEXT NOT NULL,
+    company_id INTEGER NOT NULL REFERENCES companies(id),
     analysis_type TEXT NOT NULL,
     created_at TEXT NOT NULL
 )
@@ -125,6 +125,54 @@ async def _ensure_users_is_blocked_column(db: aiosqlite.Connection) -> None:
         await db.execute("ALTER TABLE users ADD COLUMN is_blocked INTEGER NOT NULL DEFAULT 0")
 
 
+async def _ensure_analysis_requests_schema(db: aiosqlite.Connection) -> None:
+    """Старые БД хранили company_name TEXT — переносим на company_id с
+    созданием недостающих companies по историческим названиям, не теряя
+    накопленную для /stats статистику."""
+    async with db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='analysis_requests'"
+    ) as cursor:
+        exists = await cursor.fetchone() is not None
+
+    if not exists:
+        await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
+        return
+
+    async with db.execute("PRAGMA table_info(analysis_requests)") as cursor:
+        columns = [row[1] async for row in cursor]
+
+    if "company_id" in columns:
+        return
+
+    await db.execute("ALTER TABLE analysis_requests RENAME TO analysis_requests_old")
+    await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
+
+    db.row_factory = aiosqlite.Row
+    async with db.execute(
+        "SELECT user_id, company_name, analysis_type, created_at FROM analysis_requests_old"
+    ) as cursor:
+        old_rows = await cursor.fetchall()
+
+    for row in old_rows:
+        name = _normalize_name(row["company_name"])
+        async with db.execute("SELECT id FROM companies WHERE name = ?", (name,)) as c:
+            existing = await c.fetchone()
+
+        if existing is not None:
+            company_id = existing[0]
+        else:
+            insert_cursor = await db.execute("INSERT INTO companies (name) VALUES (?)", (name,))
+            company_id = insert_cursor.lastrowid
+
+        await db.execute(
+            "INSERT INTO analysis_requests (user_id, company_id, analysis_type, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (row["user_id"], company_id, row["analysis_type"], row["created_at"]),
+        )
+
+    await db.execute("DROP TABLE analysis_requests_old")
+
+
 async def init_db() -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute(CREATE_USERS_TABLE)
@@ -134,11 +182,11 @@ async def init_db() -> None:
         await db.execute(CREATE_SECTOR_NEWS_TABLE)
         await db.execute(CREATE_COMPANY_MARKET_DATA_TABLE)
         await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
-        await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
         await db.execute(CREATE_MESSAGES_TABLE)
         await db.execute(CREATE_SUBSCRIPTION_EVENTS_TABLE)
         await db.execute("DROP TABLE IF EXISTS company_cache")
         await _ensure_users_is_blocked_column(db)
+        await _ensure_analysis_requests_schema(db)
         await db.commit()
 
 
@@ -170,7 +218,11 @@ async def get_cached_company_data(company_query: str) -> dict | None:
         ) as cursor:
             company = await cursor.fetchone()
 
-        if company is None or datetime.fromisoformat(company["expires_at"]) < datetime.utcnow():
+        if (
+            company is None
+            or company["expires_at"] is None
+            or datetime.fromisoformat(company["expires_at"]) < datetime.utcnow()
+        ):
             return None
 
         company_id = company["id"]
@@ -424,12 +476,24 @@ async def get_user_messages(user_id: int, limit: int = 20) -> list[dict]:
 
 
 async def log_analysis_request(user_id: int, company_name: str, analysis_type: str) -> None:
+    name = _normalize_name(company_name)
     async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT id FROM companies WHERE name = ?", (name,)) as cursor:
+            row = await cursor.fetchone()
+
+        if row is not None:
+            company_id = row[0]
+        else:
+            # На практике get_company_data уже создал запись к этому моменту —
+            # но не падаем, если порядок вызовов когда-нибудь поменяется.
+            insert_cursor = await db.execute("INSERT INTO companies (name) VALUES (?)", (name,))
+            company_id = insert_cursor.lastrowid
+
         await db.execute(
             """
-            INSERT INTO analysis_requests (user_id, company_name, analysis_type, created_at)
+            INSERT INTO analysis_requests (user_id, company_id, analysis_type, created_at)
             VALUES (?, ?, ?, ?)
             """,
-            (user_id, company_name, analysis_type, datetime.utcnow().isoformat()),
+            (user_id, company_id, analysis_type, datetime.utcnow().isoformat()),
         )
         await db.commit()

@@ -295,3 +295,80 @@ async def test_subscription_events_scoped_to_user():
     events = await database.get_subscription_events(1)
 
     assert len(events) == 1
+
+
+async def test_log_analysis_request_reuses_existing_company():
+    await database.init_db()
+    await database.save_company_cache("Лукойл", {"news": [], "moex": None, "sector": None})
+
+    import aiosqlite
+
+    async with aiosqlite.connect(database.DB_PATH) as db:
+        async with db.execute("SELECT id FROM companies WHERE name = 'лукойл'") as cursor:
+            (expected_company_id,) = await cursor.fetchone()
+
+    await database.log_analysis_request(1, "Лукойл", "swot")
+
+    async with aiosqlite.connect(database.DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM companies") as cursor:
+            (company_count,) = await cursor.fetchone()
+        async with db.execute("SELECT company_id FROM analysis_requests") as cursor:
+            (logged_company_id,) = await cursor.fetchone()
+
+    assert company_count == 1  # не создал вторую запись компании
+    assert logged_company_id == expected_company_id
+
+
+async def test_log_analysis_request_creates_company_if_missing():
+    await database.init_db()
+    await database.log_analysis_request(1, "Новая Компания", "swot")
+
+    import aiosqlite
+
+    async with aiosqlite.connect(database.DB_PATH) as db:
+        async with db.execute("SELECT name FROM companies") as cursor:
+            rows = await cursor.fetchall()
+
+    assert [r[0] for r in rows] == ["новая компания"]
+
+
+async def test_old_analysis_requests_schema_is_migrated_with_data():
+    tmp_path = database.DB_PATH
+    import aiosqlite
+
+    # Эмулируем старую БД: company_name TEXT вместо company_id
+    async with aiosqlite.connect(tmp_path) as db:
+        await db.execute(
+            """
+            CREATE TABLE analysis_requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                company_name TEXT NOT NULL,
+                analysis_type TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        await db.execute(
+            "INSERT INTO analysis_requests (user_id, company_name, analysis_type, created_at) "
+            "VALUES (1, 'Лукойл', 'swot', '2026-01-01T00:00:00')"
+        )
+        await db.commit()
+
+    await database.init_db()  # должен сам создать companies и перенести данные
+
+    async with aiosqlite.connect(tmp_path) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM analysis_requests") as cursor:
+            rows = await cursor.fetchall()
+
+    assert len(rows) == 1
+    assert rows[0]["analysis_type"] == "swot"
+    assert "company_id" in rows[0].keys()
+
+    async with aiosqlite.connect(tmp_path) as db:
+        async with db.execute(
+            "SELECT name FROM companies WHERE id = ?", (rows[0]["company_id"],)
+        ) as cursor:
+            (name,) = await cursor.fetchone()
+    assert name == "лукойл"

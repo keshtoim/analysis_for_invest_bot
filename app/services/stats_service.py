@@ -53,8 +53,11 @@ async def get_stats() -> dict:
 
         async with db.execute(
             """
-            SELECT company_name, COUNT(*) AS cnt FROM analysis_requests
-            GROUP BY company_name ORDER BY cnt DESC LIMIT ?
+            SELECT c.name AS company_name, COUNT(*) AS cnt
+            FROM analysis_requests ar
+            JOIN companies c ON c.id = ar.company_id
+            GROUP BY ar.company_id
+            ORDER BY cnt DESC LIMIT ?
             """,
             (TOP_COMPANIES_LIMIT,),
         ) as cursor:
