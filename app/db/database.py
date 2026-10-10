@@ -53,6 +53,19 @@ CREATE TABLE IF NOT EXISTS analysis_requests (
 """
 
 
+# Аудит-лог: subscriptions хранит только текущее состояние, без истории
+# выдач/отзывов. Пишется при каждом вызове grant_subscription/revoke_subscription.
+CREATE_SUBSCRIPTION_EVENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS subscription_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT,
+    external_id TEXT,
+    created_at TEXT NOT NULL
+)
+"""
+
 CREATE_MESSAGES_TABLE = """
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,6 +91,7 @@ async def init_db() -> None:
         await db.execute(CREATE_SUBSCRIPTIONS_TABLE)
         await db.execute(CREATE_ANALYSIS_REQUESTS_TABLE)
         await db.execute(CREATE_MESSAGES_TABLE)
+        await db.execute(CREATE_SUBSCRIPTION_EVENTS_TABLE)
         await _ensure_users_is_blocked_column(db)
         await db.commit()
 
@@ -141,6 +155,22 @@ async def save_company_cache(company_query: str, raw_data: dict, source: str) ->
         await db.commit()
 
 
+async def _log_subscription_event(
+    db: aiosqlite.Connection,
+    user_id: int,
+    action: str,
+    source: str | None,
+    external_id: str | None,
+) -> None:
+    await db.execute(
+        """
+        INSERT INTO subscription_events (user_id, action, source, external_id, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (user_id, action, source, external_id, datetime.utcnow().isoformat()),
+    )
+
+
 async def grant_subscription(
     user_id: int,
     days: int,
@@ -164,6 +194,7 @@ async def grant_subscription(
             """,
             (user_id, plan, source, external_id, now.isoformat(), expires_at.isoformat()),
         )
+        await _log_subscription_event(db, user_id, "grant", source, external_id)
         await db.commit()
 
 
@@ -180,7 +211,20 @@ async def get_subscription(user_id: int) -> dict | None:
 async def revoke_subscription(user_id: int) -> None:
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("DELETE FROM subscriptions WHERE user_id = ?", (user_id,))
+        await _log_subscription_event(db, user_id, "revoke", source=None, external_id=None)
         await db.commit()
+
+
+async def get_subscription_events(user_id: int) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT action, source, external_id, created_at FROM subscription_events "
+            "WHERE user_id = ? ORDER BY id",
+            (user_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 async def block_user(user_id: int) -> bool:

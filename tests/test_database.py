@@ -203,3 +203,35 @@ async def test_get_user_messages_scoped_to_user():
     history = await database.get_user_messages(1)
 
     assert [m["text"] for m in history] == ["от юзера 1"]
+
+
+async def test_grant_subscription_logs_event():
+    await database.init_db()
+    await database.grant_subscription(1, days=30, source="prodamus", external_id="ext-1")
+
+    events = await database.get_subscription_events(1)
+
+    assert len(events) == 1
+    assert events[0]["action"] == "grant"
+    assert events[0]["source"] == "prodamus"
+    assert events[0]["external_id"] == "ext-1"
+
+
+async def test_revoke_subscription_logs_event():
+    await database.init_db()
+    await database.grant_subscription(1, days=30)
+    await database.revoke_subscription(1)
+
+    events = await database.get_subscription_events(1)
+
+    assert [e["action"] for e in events] == ["grant", "revoke"]
+
+
+async def test_subscription_events_scoped_to_user():
+    await database.init_db()
+    await database.grant_subscription(1, days=30)
+    await database.grant_subscription(2, days=30)
+
+    events = await database.get_subscription_events(1)
+
+    assert len(events) == 1
