@@ -120,7 +120,7 @@ graph TD
         AI[Claude<br/>напрямую или через шлюз]
     end
 
-    DB[(SQLite, 3NF<br/>users, companies+sectors+news,<br/>subscriptions(+events), analysis_requests,<br/>messages)]
+    DB[(SQLite, 3NF<br/>users, companies+sectors+news,<br/>subscriptions+events, analysis_requests,<br/>messages)]
 
     U <--> API
     OWNER <--> API
