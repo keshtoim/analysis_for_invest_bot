@@ -5,8 +5,6 @@ from app.services.ai_provider import identify_sector
 from app.services.data_sources import fetch_raw_company_data, fetch_sector_news_snippets
 from app.utils.logger import logger
 
-SOURCE_NAME = "google_news+moex"
-
 
 async def _fetch_sector_data(company_name: str) -> dict | None:
     try:
@@ -32,5 +30,5 @@ async def get_company_data(company_name: str) -> dict:
     )
     raw_data["sector"] = sector_data
 
-    await save_company_cache(company_name, raw_data, source=SOURCE_NAME)
+    await save_company_cache(company_name, raw_data)
     return raw_data

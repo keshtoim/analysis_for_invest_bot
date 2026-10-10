@@ -12,7 +12,7 @@ def _use_temp_db(tmp_path, monkeypatch):
 async def test_cache_hit_skips_fetching(monkeypatch):
     await database.init_db()
     cached_data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
-    await database.save_company_cache("Лукойл", cached_data, source="test")
+    await database.save_company_cache("Лукойл", cached_data)
 
     async def _should_not_be_called(*args, **kwargs):
         raise AssertionError("fetch_raw_company_data не должен вызываться при попадании в кэш")
@@ -28,13 +28,17 @@ async def test_cache_miss_fetches_and_saves_with_sector(monkeypatch):
     await database.init_db()
 
     async def fake_fetch_raw(company_name):
-        return {"company_name": company_name, "news": [{"title": "Новость"}], "moex": None}
+        return {
+            "company_name": company_name,
+            "news": [{"title": "Новость", "snippet": "Текст", "url": "https://x"}],
+            "moex": None,
+        }
 
     async def fake_identify_sector(company_name):
         return "Нефтегазовая отрасль"
 
     async def fake_fetch_sector_news(sector_name):
-        return [{"title": f"Новость про {sector_name}"}]
+        return [{"title": f"Новость про {sector_name}", "snippet": "Текст", "url": "https://y"}]
 
     monkeypatch.setattr(company_data, "fetch_raw_company_data", fake_fetch_raw)
     monkeypatch.setattr(company_data, "identify_sector", fake_identify_sector)
@@ -45,12 +49,14 @@ async def test_cache_miss_fetches_and_saves_with_sector(monkeypatch):
     assert result["company_name"] == "Лукойл"
     assert result["sector"] == {
         "name": "Нефтегазовая отрасль",
-        "news": [{"title": "Новость про Нефтегазовая отрасль"}],
+        "news": [{"title": "Новость про Нефтегазовая отрасль", "snippet": "Текст", "url": "https://y"}],
     }
 
-    # И сохранилось в кэш
+    # И сохранилось в кэш (имя сектора в БД нормализовано — strip+casefold)
     cached = await database.get_cached_company_data("Лукойл")
-    assert cached == result
+    assert cached["sector"]["name"] == "нефтегазовая отрасль"
+    assert cached["sector"]["news"] == result["sector"]["news"]
+    assert cached["news"] == result["news"]
 
 
 async def test_sector_fetch_failure_does_not_break_company_analysis(monkeypatch):

@@ -33,27 +33,43 @@ async def test_company_cache_miss_returns_none():
 
 async def test_company_cache_hit_returns_saved_data():
     await database.init_db()
-    data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
-    await database.save_company_cache("Лукойл", data, source="test")
+    data = {
+        "company_name": "Лукойл",
+        "news": [{"title": "Новость", "snippet": "Текст", "url": "https://x"}],
+        "moex": {"ticker": "LKOH", "last_price": 5438, "change_percent": -0.85,
+                  "market_cap": 3_780_000_000_000, "currency": "RUB"},
+        "sector": {"name": "Нефтегазовая отрасль", "news": [{"title": "Сектор", "snippet": "С", "url": "u"}]},
+    }
+    await database.save_company_cache("Лукойл", data)
 
     cached = await database.get_cached_company_data("Лукойл")
 
-    assert cached == data
+    # Имя сектора в БД нормализовано (strip+casefold) — остальное совпадает как есть
+    assert cached["sector"]["name"] == "нефтегазовая отрасль"
+    assert cached["sector"]["news"] == data["sector"]["news"]
+    assert cached["news"] == data["news"]
+    assert cached["moex"] == data["moex"]
+    assert cached["company_name"] == "Лукойл"
 
 
 async def test_company_cache_hit_is_case_and_whitespace_insensitive():
     await database.init_db()
     data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
-    await database.save_company_cache("Лукойл", data, source="test")
+    await database.save_company_cache("Лукойл", data)
 
-    assert await database.get_cached_company_data(" ЛУКОЙЛ ") == data
-    assert await database.get_cached_company_data("лукойл") == data
+    # Попадание в кэш не зависит от регистра/пробелов; company_name в ответе —
+    # это регистр текущего запроса, а не исходного (БД хранит нормализованный ключ).
+    by_upper = await database.get_cached_company_data(" ЛУКОЙЛ ")
+    assert by_upper == {**data, "company_name": "ЛУКОЙЛ"}
+
+    by_lower = await database.get_cached_company_data("лукойл")
+    assert by_lower == {**data, "company_name": "лукойл"}
 
 
-async def test_expired_company_cache_is_ignored(monkeypatch):
+async def test_expired_company_cache_is_ignored():
     await database.init_db()
     data = {"company_name": "Лукойл", "news": [], "moex": None, "sector": None}
-    await database.save_company_cache("Лукойл", data, source="test")
+    await database.save_company_cache("Лукойл", data)
 
     # Переводим expires_at в прошлое напрямую в БД, минуя CACHE_TTL_HOURS
     import aiosqlite
@@ -61,8 +77,8 @@ async def test_expired_company_cache_is_ignored(monkeypatch):
     past = (datetime.utcnow() - timedelta(hours=1)).isoformat()
     async with aiosqlite.connect(database.DB_PATH) as db:
         await db.execute(
-            "UPDATE company_cache SET expires_at = ? WHERE company_query = ?",
-            (past, database._normalize_company_query("Лукойл")),
+            "UPDATE companies SET expires_at = ? WHERE name = ?",
+            (past, database._normalize_name("Лукойл")),
         )
         await db.commit()
 
@@ -71,17 +87,61 @@ async def test_expired_company_cache_is_ignored(monkeypatch):
 
 async def test_save_company_cache_upserts_by_query():
     await database.init_db()
-    await database.save_company_cache("Лукойл", {"v": 1}, source="test")
-    await database.save_company_cache("Лукойл", {"v": 2}, source="test")
+    await database.save_company_cache("Лукойл", {"news": [{"title": "Старая"}], "moex": None, "sector": None})
+    await database.save_company_cache("Лукойл", {"news": [{"title": "Новая"}], "moex": None, "sector": None})
 
     import aiosqlite
 
     async with aiosqlite.connect(database.DB_PATH) as db:
-        async with db.execute("SELECT COUNT(*) FROM company_cache") as cursor:
+        async with db.execute("SELECT COUNT(*) FROM companies") as cursor:
             (count,) = await cursor.fetchone()
 
     assert count == 1
-    assert await database.get_cached_company_data("Лукойл") == {"v": 2}
+    cached = await database.get_cached_company_data("Лукойл")
+    assert cached["news"] == [{"title": "Новая", "snippet": None, "url": None}]
+
+
+async def test_fresh_sector_is_reused_between_companies():
+    await database.init_db()
+    sector_news = [{"title": "Сектор", "snippet": "С", "url": "u"}]
+    await database.save_company_cache(
+        "Лукойл", {"news": [], "moex": None, "sector": {"name": "Нефтегаз", "news": sector_news}}
+    )
+    await database.save_company_cache(
+        "Роснефть", {"news": [], "moex": None, "sector": {"name": "Нефтегаз", "news": []}}
+    )
+
+    import aiosqlite
+
+    async with aiosqlite.connect(database.DB_PATH) as db:
+        async with db.execute("SELECT COUNT(*) FROM sectors") as cursor:
+            (sector_count,) = await cursor.fetchone()
+
+    assert sector_count == 1  # один и тот же свежий сектор, не задвоился
+    rosneft = await database.get_cached_company_data("Роснефть")
+    assert rosneft["sector"]["news"] == sector_news  # новости не затёрлись пустым списком
+
+
+async def test_expired_sector_is_refreshed():
+    await database.init_db()
+    await database.save_company_cache(
+        "Лукойл", {"news": [], "moex": None, "sector": {"name": "Нефтегаз", "news": [{"title": "Старое"}]}}
+    )
+
+    import aiosqlite
+
+    past = (datetime.utcnow() - timedelta(hours=1)).isoformat()
+    async with aiosqlite.connect(database.DB_PATH) as db:
+        await db.execute("UPDATE sectors SET expires_at = ?", (past,))
+        await db.commit()
+
+    new_news = [{"title": "Свежее", "snippet": None, "url": None}]
+    await database.save_company_cache(
+        "Роснефть", {"news": [], "moex": None, "sector": {"name": "Нефтегаз", "news": new_news}}
+    )
+
+    rosneft = await database.get_cached_company_data("Роснефть")
+    assert rosneft["sector"]["news"] == new_news
 
 
 async def test_get_subscription_returns_none_when_absent():

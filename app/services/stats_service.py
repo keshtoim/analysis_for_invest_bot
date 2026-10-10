@@ -68,7 +68,7 @@ async def get_stats() -> dict:
         ) as cursor:
             requests_by_type = [(row["analysis_type"], row["cnt"]) for row in await cursor.fetchall()]
 
-        cached_companies = await scalar("SELECT COUNT(*) FROM company_cache")
+        cached_companies = await scalar("SELECT COUNT(*) FROM companies")
         active_subscriptions = await scalar(
             "SELECT COUNT(*) FROM subscriptions WHERE expires_at > ?",
             (datetime.utcnow().isoformat(),),
