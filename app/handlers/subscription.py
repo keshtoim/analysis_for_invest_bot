@@ -20,6 +20,9 @@ from app.utils.html import escape_html
 
 router = Router()
 
+TELEGRAM_MESSAGE_LIMIT = 4096
+HISTORY_TEXT_PREVIEW_LIMIT = 300
+
 FREE_VERSION_TEXT = (
     "Сейчас бот полностью бесплатный — платные подписки ещё не подключены. "
     "Просто пользуйся анализом 🙂"
@@ -137,6 +140,22 @@ async def cmd_unblock_user(message: Message, command: CommandObject) -> None:
     await message.answer(f"Пользователь разблокирован: user_id={target_user_id}")
 
 
+def _chunk_lines(lines: list[str], limit: int) -> list[str]:
+    """Склеивает строки в сообщения не длиннее limit символов (лимит Telegram)."""
+    chunks = []
+    chunk = ""
+    for line in lines:
+        candidate = f"{chunk}\n{line}" if chunk else line
+        if len(candidate) > limit:
+            chunks.append(chunk)
+            chunk = line
+        else:
+            chunk = candidate
+    if chunk:
+        chunks.append(chunk)
+    return chunks
+
+
 @router.message(Command("user_history"))
 async def cmd_user_history(message: Message, command: CommandObject) -> None:
     if not _is_owner(message.from_user.id):
@@ -160,9 +179,13 @@ async def cmd_user_history(message: Message, command: CommandObject) -> None:
 
     lines = [f"<b>История сообщений</b> user_id={target_user_id} (последние {len(history)}):", ""]
     for item in history:
-        lines.append(f"[{item['created_at'][:16]}] {escape_html(item['text'])}")
+        text = item["text"]
+        if len(text) > HISTORY_TEXT_PREVIEW_LIMIT:
+            text = text[:HISTORY_TEXT_PREVIEW_LIMIT] + "…"
+        lines.append(f"[{item['created_at'][:16]}] {escape_html(text)}")
 
-    await message.answer("\n".join(lines))
+    for chunk in _chunk_lines(lines, TELEGRAM_MESSAGE_LIMIT):
+        await message.answer(chunk)
 
 
 def _format_stats(stats: dict) -> str:

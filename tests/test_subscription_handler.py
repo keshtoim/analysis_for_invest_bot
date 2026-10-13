@@ -84,3 +84,28 @@ def test_format_stats_includes_blocked_count():
     text = subscription._format_stats(stats)
 
     assert "Заблокировано: 2" in text
+
+
+def test_chunk_lines_fits_everything_in_one_chunk_when_short():
+    lines = ["заголовок", "строка 1", "строка 2"]
+
+    chunks = subscription._chunk_lines(lines, limit=100)
+
+    assert chunks == ["заголовок\nстрока 1\nстрока 2"]
+
+
+def test_chunk_lines_splits_when_limit_exceeded():
+    lines = ["AAAAA", "BBBBB", "CCCCC"]
+
+    chunks = subscription._chunk_lines(lines, limit=11)
+
+    assert chunks == ["AAAAA\nBBBBB", "CCCCC"]
+    assert all(len(chunk) <= 11 for chunk in chunks)
+
+
+def test_chunk_lines_keeps_single_long_line_within_its_own_chunk():
+    lines = ["короткая", "x" * 50]
+
+    chunks = subscription._chunk_lines(lines, limit=20)
+
+    assert chunks == ["короткая", "x" * 50]
