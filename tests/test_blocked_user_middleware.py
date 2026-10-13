@@ -101,3 +101,29 @@ async def test_block_status_cache_expires_after_ttl(monkeypatch):
     await database.block_user(1)
 
     assert await blocked_user_middleware_module._is_blocked_cached(1) is True
+
+
+async def test_sweep_expired_removes_only_stale_entries(monkeypatch):
+    cache = blocked_user_middleware_module._cache
+    now = 1000.0
+    cache[1] = (False, now - 100)  # устарел
+    cache[2] = (False, now)  # свежий
+
+    blocked_user_middleware_module._sweep_expired(now)
+
+    assert 1 not in cache
+    assert 2 in cache
+
+
+async def test_cache_is_swept_after_n_writes(monkeypatch):
+    await database.init_db()
+    monkeypatch.setattr(blocked_user_middleware_module, "CACHE_TTL_SECONDS", 0)
+    monkeypatch.setattr(blocked_user_middleware_module, "SWEEP_EVERY_N_WRITES", 3)
+    monkeypatch.setattr(blocked_user_middleware_module, "_writes_since_sweep", 0)
+
+    for user_id in range(1, 4):
+        await database.upsert_user(user_id=user_id, username=None, first_name=None)
+        await blocked_user_middleware_module._is_blocked_cached(user_id)
+
+    # TTL=0 — все три записи устарели к моменту свипа на 3-й записи
+    assert blocked_user_middleware_module._cache == {}
