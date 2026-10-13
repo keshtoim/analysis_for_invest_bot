@@ -73,37 +73,36 @@ def _pick_share_security(columns: list[str], rows: list[list]) -> dict | None:
 
 async def fetch_moex_data(company_name: str) -> dict | None:
     """Данные по акции с Мосбиржи (публичный ISS API, без ключа)."""
-    try:
-        async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession() as session:
+        try:
             async with session.get(
                 MOEX_SEARCH_URL,
                 params={"q": company_name, "iss.meta": "off"},
                 timeout=HTTP_TIMEOUT,
             ) as response:
                 search_data = await response.json()
-    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-        logger.warning("Не удалось найти %s на MOEX: %s", company_name, exc)
-        return None
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            logger.warning("Не удалось найти %s на MOEX: %s", company_name, exc)
+            return None
 
-    securities = search_data.get("securities", {})
-    security = _pick_share_security(securities.get("columns", []), securities.get("data", []))
-    if security is None:
-        return None
+        securities = search_data.get("securities", {})
+        security = _pick_share_security(securities.get("columns", []), securities.get("data", []))
+        if security is None:
+            return None
 
-    ticker = security.get("secid")
-    board = security.get("marketprice_boardid") or security.get("primary_boardid")
+        ticker = security.get("secid")
+        board = security.get("marketprice_boardid") or security.get("primary_boardid")
 
-    try:
-        async with aiohttp.ClientSession() as session:
+        try:
             async with session.get(
                 MOEX_MARKETDATA_URL.format(ticker=ticker),
                 params={"iss.meta": "off"},
                 timeout=HTTP_TIMEOUT,
             ) as response:
                 market_data = await response.json()
-    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
-        logger.warning("Не удалось получить котировки %s с MOEX: %s", ticker, exc)
-        return {"ticker": ticker, "name": security.get("name")}
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            logger.warning("Не удалось получить котировки %s с MOEX: %s", ticker, exc)
+            return {"ticker": ticker, "name": security.get("name")}
 
     marketdata = market_data.get("marketdata", {})
     md_columns = marketdata.get("columns", [])
