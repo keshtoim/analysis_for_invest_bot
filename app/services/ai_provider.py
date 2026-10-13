@@ -10,6 +10,7 @@ from app.config import (
     OPENAI_MODEL,
 )
 from app.models.analysis_type import AnalysisType
+from app.utils.logger import logger
 
 _HTML_RULES = (
     "Ответ пойдёт в Telegram-сообщение с HTML-разметкой, поэтому:\n"
@@ -124,7 +125,10 @@ def _get_openai_client() -> AsyncOpenAI:
     return _openai_client
 
 
-async def _call_ai(prompt: str, max_tokens: int = 1024) -> str:
+ANALYSIS_MAX_TOKENS = 4096
+
+
+async def _call_ai(prompt: str, max_tokens: int = ANALYSIS_MAX_TOKENS) -> str:
     if AI_PROVIDER == "openai":
         # OpenAI-совместимый шлюз (например, Timeweb AI Gateway), отдающий Claude
         response = await _get_openai_client().chat.completions.create(
@@ -132,14 +136,23 @@ async def _call_ai(prompt: str, max_tokens: int = 1024) -> str:
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        if choice.finish_reason == "length":
+            logger.warning("Ответ ИИ обрезан по max_tokens (openai, %s токенов)", max_tokens)
+        return choice.message.content or ""
 
     response = await _get_anthropic_client().messages.create(
         model=CLAUDE_MODEL,
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text
+    if response.stop_reason == "max_tokens":
+        logger.warning("Ответ ИИ обрезан по max_tokens (anthropic, %s токенов)", max_tokens)
+    text = next((block.text for block in response.content if block.type == "text"), None)
+    if text is None:
+        logger.warning("Ответ ИИ не содержит текстового блока (stop_reason=%s)", response.stop_reason)
+        return ""
+    return text
 
 
 async def generate_analysis(company_data: dict, analysis_type: AnalysisType) -> str:
