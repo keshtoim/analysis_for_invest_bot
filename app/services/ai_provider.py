@@ -169,5 +169,5 @@ async def identify_sector(company_name: str) -> str:
         "словосочетанием на русском языке, без пояснений и знаков препинания в конце. "
         'Например: "Нефтегазовая отрасль", "Розничная торговля", "Банковский сектор".'
     )
-    sector = await _call_ai(prompt, max_tokens=20)
+    sector = await _call_ai(prompt, max_tokens=40)
     return sector.strip()
