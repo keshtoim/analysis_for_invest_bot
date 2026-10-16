@@ -3,7 +3,8 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from app.constants import DISCLAIMER_TEXT
-from app.db.database import upsert_user
+from app.db.database import upsert_user, user_exists
+from app.keyboards.main_menu import main_menu_keyboard
 from app.keyboards.onboarding import start_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_DESCRIPTIONS, ANALYSIS_TYPE_LABELS
 
@@ -34,12 +35,16 @@ HELP_TEXT = (
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
+    is_returning = await user_exists(message.from_user.id)
     await upsert_user(
         user_id=message.from_user.id,
         username=message.from_user.username,
         first_name=message.from_user.first_name,
     )
-    await message.answer(START_TEXT, reply_markup=start_keyboard())
+    # Вернувшийся юзер мог застрять со старой reply-клавиатурой (Telegram не
+    # обновляет её сам) — /start сразу чинит это, без повторного онбординга.
+    keyboard = main_menu_keyboard() if is_returning else start_keyboard()
+    await message.answer(START_TEXT, reply_markup=keyboard)
 
 
 @router.message(Command("help"))

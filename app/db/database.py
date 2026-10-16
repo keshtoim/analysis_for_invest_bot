@@ -205,6 +205,13 @@ async def upsert_user(user_id: int, username: str | None, first_name: str | None
         await db.commit()
 
 
+async def user_exists(user_id: int) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+    return row is not None
+
+
 def _normalize_name(name: str) -> str:
     """"Лукойл"/"ЛУКОЙЛ"/"лукойл " — один и тот же ключ (компании и сектора)."""
     return name.strip().casefold()
