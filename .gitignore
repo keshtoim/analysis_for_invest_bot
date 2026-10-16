@@ -14,3 +14,6 @@ data/heartbeat
 
 # Личные заметки по деплою — не в репозиторий
 DEPLOY.md
+
+# Инструкции для Claude Code — не в репозиторий
+claude.md
