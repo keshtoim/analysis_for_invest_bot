@@ -1,4 +1,56 @@
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from aiogram.types import Message
+
 from app.handlers import subscription
+from app.services import maintenance
+from app.utils import auth
+
+
+@pytest.fixture(autouse=True)
+def _use_temp_maintenance_flag(tmp_path, monkeypatch):
+    test_file = tmp_path / "maintenance"
+    monkeypatch.setattr(maintenance, "_file", test_file)
+    monkeypatch.setattr(maintenance, "_on", False)
+
+
+def _fake_message(user_id: int) -> MagicMock:
+    message = MagicMock(spec=Message)
+    message.answer = AsyncMock()
+    message.from_user = MagicMock()
+    message.from_user.id = user_id
+    return message
+
+
+async def test_maintenance_command_ignored_for_non_owner(monkeypatch):
+    monkeypatch.setattr(auth, "OWNER_CHAT_ID", "1")
+
+    await subscription.cmd_maintenance(_fake_message(2))
+
+    assert maintenance.is_on() is False
+
+
+async def test_maintenance_command_toggles_on_for_owner(monkeypatch):
+    monkeypatch.setattr(auth, "OWNER_CHAT_ID", "1")
+    message = _fake_message(1)
+
+    await subscription.cmd_maintenance(message)
+
+    assert maintenance.is_on() is True
+    message.answer.assert_awaited_once()
+    assert "включён" in message.answer.call_args.args[0]
+
+
+async def test_maintenance_command_toggles_off_on_second_call(monkeypatch):
+    monkeypatch.setattr(auth, "OWNER_CHAT_ID", "1")
+    message = _fake_message(1)
+
+    await subscription.cmd_maintenance(message)
+    await subscription.cmd_maintenance(message)
+
+    assert maintenance.is_on() is False
+    assert "выключен" in message.answer.call_args.args[0]
 
 
 def _empty_stats() -> dict:

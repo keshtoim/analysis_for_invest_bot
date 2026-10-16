@@ -14,6 +14,7 @@ from app.db.database import (
 )
 from app.keyboards.subscription import subscription_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_LABELS, AnalysisType
+from app.services import maintenance
 from app.services.stats_service import get_stats
 from app.utils.auth import is_owner
 from app.utils.html import escape_html
@@ -134,6 +135,21 @@ async def cmd_unblock_user(message: Message, command: CommandObject) -> None:
         return
 
     await message.answer(f"Пользователь разблокирован: user_id={target_user_id}")
+
+
+@router.message(Command("maintenance"))
+async def cmd_maintenance(message: Message) -> None:
+    if not is_owner(message.from_user.id):
+        return
+
+    on = maintenance.toggle()
+    if on:
+        await message.answer(
+            "🔧 Режим техработ <b>включён</b>. Всем, кроме тебя, бот отвечает «вернусь позже».\n"
+            "Выключить — снова /maintenance."
+        )
+    else:
+        await message.answer("✅ Режим техработ <b>выключен</b>. Бот снова работает для всех.")
 
 
 def _chunk_lines(lines: list[str], limit: int) -> list[str]:
