@@ -4,7 +4,6 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import CallbackQuery, Message
 
-from app.config import OWNER_CHAT_ID
 from app.db.database import (
     block_user,
     get_subscription,
@@ -16,6 +15,7 @@ from app.db.database import (
 from app.keyboards.subscription import subscription_keyboard
 from app.models.analysis_type import ANALYSIS_TYPE_LABELS, AnalysisType
 from app.services.stats_service import get_stats
+from app.utils.auth import is_owner
 from app.utils.html import escape_html
 
 router = Router()
@@ -27,10 +27,6 @@ FREE_VERSION_TEXT = (
     "Сейчас бот полностью бесплатный — платные подписки ещё не подключены. "
     "Просто пользуйся анализом 🙂"
 )
-
-
-def _is_owner(user_id: int) -> bool:
-    return bool(OWNER_CHAT_ID) and str(user_id) == str(OWNER_CHAT_ID)
 
 
 @router.message(Command("subscription"))
@@ -54,7 +50,7 @@ async def handle_purchase(callback: CallbackQuery) -> None:
 
 @router.message(Command("grant_subscription"))
 async def cmd_grant_subscription(message: Message, command: CommandObject) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     args = (command.args or "").split()
@@ -74,7 +70,7 @@ async def cmd_grant_subscription(message: Message, command: CommandObject) -> No
 
 @router.message(Command("revoke_subscription"))
 async def cmd_revoke_subscription(message: Message, command: CommandObject) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     args = (command.args or "").split()
@@ -94,7 +90,7 @@ async def cmd_revoke_subscription(message: Message, command: CommandObject) -> N
 
 @router.message(Command("block_user"))
 async def cmd_block_user(message: Message, command: CommandObject) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     args = (command.args or "").split()
@@ -118,7 +114,7 @@ async def cmd_block_user(message: Message, command: CommandObject) -> None:
 
 @router.message(Command("unblock_user"))
 async def cmd_unblock_user(message: Message, command: CommandObject) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     args = (command.args or "").split()
@@ -158,7 +154,7 @@ def _chunk_lines(lines: list[str], limit: int) -> list[str]:
 
 @router.message(Command("user_history"))
 async def cmd_user_history(message: Message, command: CommandObject) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     args = (command.args or "").split()
@@ -232,7 +228,7 @@ def _format_stats(stats: dict) -> str:
 
 @router.message(Command("stats"))
 async def cmd_stats(message: Message) -> None:
-    if not _is_owner(message.from_user.id):
+    if not is_owner(message.from_user.id):
         return
 
     stats = await get_stats()
