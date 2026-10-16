@@ -13,6 +13,7 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 DB_PATH = os.getenv("DB_PATH", "data/bot.db")
 HEARTBEAT_PATH = os.getenv("HEARTBEAT_PATH", "data/heartbeat")
+MAINTENANCE_PATH = os.getenv("MAINTENANCE_PATH", "data/maintenance")
 CACHE_TTL_HOURS = int(os.getenv("CACHE_TTL_HOURS", "6"))
 ANTI_FLOOD_COOLDOWN_SECONDS = int(os.getenv("ANTI_FLOOD_COOLDOWN_SECONDS", "3"))
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-5")
