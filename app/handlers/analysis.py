@@ -40,7 +40,7 @@ def _analysis_type_menu_text(company_name: str) -> str:
 
 @router.message(F.text == BTN_ANALYSIS)
 async def handle_analysis_button(message: Message) -> None:
-    await message.answer("Напиши название компании, которую хочешь проанализировать 🙂")
+    await message.answer("Введите название компании для начала")
 
 
 @router.message(F.text)
